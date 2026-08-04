@@ -1,0 +1,26 @@
+[package]
+name = "tidyrs-core"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "Core traits, data model and normalization layer for tidyloom"
+
+[features]
+# Enables HttpLlmResolver, a real (network-calling) AmbiguityResolver
+# implementation behind an OpenAI-compatible chat-completions API. Off by
+# default so the base crate stays dependency-light; the trait boundary
+# (AmbiguityResolver) and the rule-based default work without this.
+llm = ["dep:ureq"]
+
+[dependencies]
+serde = { workspace = true }
+serde_json = { workspace = true }
+thiserror = { workspace = true }
+csv = "1"
+parquet = { version = "53", default-features = false, features = ["snap"] }
+ureq = { version = "2", optional = true, default-features = false, features = ["tls", "json"] }
+
+[dev-dependencies]
+tempfile = "3"
+mockito = "1"

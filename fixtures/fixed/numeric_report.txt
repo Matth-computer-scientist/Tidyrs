@@ -1,0 +1,5 @@
+region     units   revenue
+North      120     4500.50
+South      95      3120.00
+East       210     8899.99
+West       60      2001.10

@@ -1,0 +1,15 @@
+[package]
+name = "tidyrs-pdf"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "Experimental PDF table extraction for tidyloom (text-based PDFs only, no OCR)"
+
+[dependencies]
+tidyrs-core = { workspace = true }
+pdf-extract = "0.7"
+
+[dev-dependencies]
+printpdf = "0.7"
+proptest = "1"

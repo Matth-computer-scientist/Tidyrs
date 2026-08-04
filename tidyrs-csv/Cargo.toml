@@ -1,0 +1,16 @@
+[package]
+name = "tidyrs-csv"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "Chaotic CSV parser for tidyloom: delimiter/encoding detection, ragged-row tolerance"
+
+[dependencies]
+tidyrs-core = { workspace = true }
+csv = "1"
+encoding_rs = "0.8"
+chardetng = "0.1"
+
+[dev-dependencies]
+proptest = "1"

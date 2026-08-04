@@ -1,0 +1,4 @@
+order_id	customer	amount	status
+1001	Jean Dupont	120.00	paid
+1002	Marie Curie	85.50
+1003	Ada Lovelace	40.00	pending	late

@@ -1,0 +1,30 @@
+[workspace]
+resolver = "2"
+members = [
+    "tidyrs-core",
+    "tidyrs-csv",
+    "tidyrs-xlsx",
+    "tidyrs-pdf",
+    "tidyrs-json",
+    "tidyrs-fixed",
+    "tidyrs-cli",
+]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2021"
+license = "MIT OR Apache-2.0"
+repository = "https://github.com/tidyloom/tidyloom"
+
+[workspace.dependencies]
+tidyrs-core = { path = "tidyrs-core" }
+tidyrs-csv = { path = "tidyrs-csv" }
+tidyrs-xlsx = { path = "tidyrs-xlsx" }
+tidyrs-pdf = { path = "tidyrs-pdf" }
+tidyrs-json = { path = "tidyrs-json" }
+tidyrs-fixed = { path = "tidyrs-fixed" }
+
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+thiserror = "1"
+anyhow = "1"

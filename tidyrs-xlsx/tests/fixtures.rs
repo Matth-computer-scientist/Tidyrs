@@ -1,0 +1,85 @@
+use tidyrs_core::{ParseOptions, TidyParser, TidyValue};
+use tidyrs_xlsx::XlsxParser;
+
+fn fixture(name: &str) -> Vec<u8> {
+    let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../fixtures/xlsx").join(name);
+    std::fs::read(path).unwrap_or_else(|e| panic!("missing fixture {name} (run `cargo run -p tidyrs-xlsx --example gen_fixtures`): {e}"))
+}
+
+#[test]
+fn merged_cells_are_forward_filled_and_junk_rows_trimmed() {
+    let bytes = fixture("junk_rows_and_merged_cells.xlsx");
+    let parser = XlsxParser::new();
+    let outcome = parser.parse(&bytes, "junk_rows_and_merged_cells.xlsx", &ParseOptions::new()).unwrap();
+    let table = &outcome.tables[0];
+
+    assert_eq!(table.headers, vec!["name", "score", "team"]);
+    // The title row and the footer row must not have become data rows.
+    assert_eq!(table.rows.len(), 3);
+    // The merged "team" cell (Blue, spanning rows 2-4) must be forward-filled
+    // into every row of the merged region, not just the first.
+    assert_eq!(table.rows[0][2], TidyValue::Text("Blue".to_string()));
+    assert_eq!(table.rows[1][2], TidyValue::Text("Blue".to_string()));
+    assert_eq!(table.rows[2][2], TidyValue::Text("Blue".to_string()));
+}
+
+#[test]
+fn multi_sheet_workbook_produces_one_table_per_sheet_with_own_shape() {
+    let bytes = fixture("multi_sheet_different_shapes.xlsx");
+    let parser = XlsxParser::new();
+    let outcome = parser.parse(&bytes, "multi_sheet_different_shapes.xlsx", &ParseOptions::new()).unwrap();
+
+    assert_eq!(outcome.tables.len(), 2);
+    let people = outcome.tables.iter().find(|t| t.source.as_deref() == Some("People")).unwrap();
+    let orders = outcome.tables.iter().find(|t| t.source.as_deref() == Some("Orders")).unwrap();
+
+    assert_eq!(people.headers, vec!["name", "age"]);
+    assert_eq!(orders.headers, vec!["product", "price", "qty"]);
+    assert_eq!(people.rows.len(), 2);
+    assert_eq!(orders.rows.len(), 2);
+}
+
+#[test]
+fn leading_blank_and_title_rows_are_skipped() {
+    let bytes = fixture("leading_blank_and_title_rows.xlsx");
+    let parser = XlsxParser::new();
+    let outcome = parser.parse(&bytes, "leading_blank_and_title_rows.xlsx", &ParseOptions::new()).unwrap();
+    let table = &outcome.tables[0];
+
+    assert_eq!(table.headers, vec!["sku", "description", "in_stock"]);
+    assert_eq!(table.rows.len(), 2);
+    assert_eq!(table.rows[0][2], TidyValue::Bool(true));
+}
+
+#[test]
+fn exact_merge_regions_do_not_leak_into_unmerged_gaps() {
+    // A naive column forward-fill would incorrectly propagate "Blue" into
+    // Carla's row (blank but NOT part of any merge). Exact merge-region
+    // boundaries must leave it Null and correctly fill only Dave/Eve with
+    // the second, separate "Red" merge.
+    let bytes = fixture("two_merges_with_gap_between.xlsx");
+    let parser = XlsxParser::new();
+    let outcome = parser.parse(&bytes, "two_merges_with_gap_between.xlsx", &ParseOptions::new()).unwrap();
+    let table = &outcome.tables[0];
+
+    assert_eq!(table.headers, vec!["name", "team"]);
+    assert_eq!(table.rows.len(), 5);
+    assert_eq!(table.rows[0][1], TidyValue::Text("Blue".to_string())); // Alice
+    assert_eq!(table.rows[1][1], TidyValue::Text("Blue".to_string())); // Bob
+    assert_eq!(table.rows[2][1], TidyValue::Null); // Carla - not merged, must stay empty
+    assert_eq!(table.rows[3][1], TidyValue::Text("Red".to_string())); // Dave
+    assert_eq!(table.rows[4][1], TidyValue::Text("Red".to_string())); // Eve
+
+    assert!(outcome.report.notes.iter().any(|n| n.message.contains("exact boundaries")));
+}
+
+#[test]
+fn sheet_option_restricts_to_one_sheet() {
+    let bytes = fixture("multi_sheet_different_shapes.xlsx");
+    let parser = XlsxParser::new();
+    let opts = ParseOptions::new().set("sheet", "Orders");
+    let outcome = parser.parse(&bytes, "multi_sheet_different_shapes.xlsx", &opts).unwrap();
+
+    assert_eq!(outcome.tables.len(), 1);
+    assert_eq!(outcome.tables[0].source.as_deref(), Some("Orders"));
+}

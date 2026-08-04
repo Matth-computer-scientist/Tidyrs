@@ -1,0 +1,33 @@
+[package]
+name = "tidyrs-cli"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "Command-line interface for tidyloom"
+
+[[bin]]
+name = "tidyloom"
+path = "src/main.rs"
+
+[dependencies]
+tidyrs-core = { workspace = true }
+tidyrs-csv = { workspace = true }
+tidyrs-xlsx = { workspace = true }
+tidyrs-pdf = { workspace = true }
+tidyrs-json = { workspace = true }
+tidyrs-fixed = { workspace = true }
+clap = { version = "4", features = ["derive"] }
+anyhow = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+similar = "2"
+toml = "0.8"
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter", "json"] }
+
+[dev-dependencies]
+assert_cmd = "2"
+predicates = "3"
+tempfile = "3"
+rust_xlsxwriter = "0.96"

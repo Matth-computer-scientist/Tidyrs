@@ -1,0 +1,6 @@
+{
+  "order_id": 5001,
+  "customer": "Jean Dupont",
+  "amount": 120.5,
+  "paid": true
+}

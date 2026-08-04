@@ -1,0 +1,4 @@
+2026-01-03 08:12:01 INFO  Started service on port 8080
+2026-01-03 08:12:05 WARN  Slow response from upstream 512ms
+2026-01-03 08:12:09 ERROR Connection refused by database
+2026-01-03 08:12:10 INFO  Retrying connection attempt 1

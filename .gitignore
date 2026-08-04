@@ -1,0 +1,7 @@
+/target
+**/*.rs.bk
+*.pdb
+
+# proptest regression seeds are useful to keep per-crate; only ignore
+# accidental scratch output, not the committed regression files.
+/tidyrs-cli/tests/idempotence.proptest-regressions.tmp

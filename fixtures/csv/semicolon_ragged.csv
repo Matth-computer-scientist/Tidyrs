@@ -1,0 +1,5 @@
+name;age;city;notes
+Alice;30;Paris;likes tea
+Bob;;Lyon
+Charlotte;25;Marseille;"loves; markets";extra_field
+Dave;41;Nice;ok
