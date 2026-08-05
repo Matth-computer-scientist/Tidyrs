@@ -8,10 +8,7 @@ mod stream;
 
 pub use stream::stream_clean_csv;
 
-use tidyrs_core::{
-    AmbiguityResolver, CleaningReport, ParseOptions, ParseOutcome, RuleBasedResolver, TidyError, TidyParser, TidyResult,
-    TidyTable,
-};
+use tidyrs_core::{AmbiguityResolver, CleaningReport, ParseOptions, ParseOutcome, RuleBasedResolver, TidyError, TidyParser, TidyResult, TidyTable};
 
 const CANDIDATE_DELIMITERS: [u8; 4] = [b',', b';', b'\t', b'|'];
 
@@ -21,7 +18,9 @@ pub struct CsvParser {
 
 impl CsvParser {
     pub fn new() -> Self {
-        Self { resolver: Box::new(RuleBasedResolver) }
+        Self {
+            resolver: Box::new(RuleBasedResolver),
+        }
     }
 
     /// Swaps in a different [`AmbiguityResolver`] for column-type
@@ -87,10 +86,7 @@ pub(crate) fn detect_delimiter(text: &str) -> u8 {
     let mut best_score = f64::MIN;
 
     for &delim in &CANDIDATE_DELIMITERS {
-        let counts: Vec<usize> = sample
-            .iter()
-            .map(|line| count_delimiter_outside_quotes(line, delim))
-            .collect();
+        let counts: Vec<usize> = sample.iter().map(|line| count_delimiter_outside_quotes(line, delim)).collect();
         let total: usize = counts.iter().sum();
         if total == 0 {
             continue;
@@ -140,9 +136,7 @@ impl TidyParser for CsvParser {
 
         let (text, encoding_used) = decode_bytes(bytes);
         if encoding_used != "UTF-8" {
-            report.warning(format!(
-                "input was not valid UTF-8; decoded using detected encoding {encoding_used}"
-            ));
+            report.warning(format!("input was not valid UTF-8; decoded using detected encoding {encoding_used}"));
         }
 
         let delimiter = match options.get("delimiter") {
@@ -241,9 +235,6 @@ impl TidyParser for CsvParser {
         table.normalize_row_widths();
         report.rows_out = table.rows.len();
 
-        Ok(ParseOutcome {
-            tables: vec![table],
-            report,
-        })
+        Ok(ParseOutcome { tables: vec![table], report })
     }
 }

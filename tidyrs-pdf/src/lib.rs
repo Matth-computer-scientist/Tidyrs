@@ -17,9 +17,7 @@
 
 mod glyphs;
 
-use tidyrs_core::{
-    AmbiguityResolver, CleaningReport, ParseOptions, ParseOutcome, RuleBasedResolver, TidyError, TidyParser, TidyResult, TidyTable,
-};
+use tidyrs_core::{AmbiguityResolver, CleaningReport, ParseOptions, ParseOutcome, RuleBasedResolver, TidyError, TidyParser, TidyResult, TidyTable};
 
 pub struct PdfParser {
     resolver: Box<dyn AmbiguityResolver>,
@@ -27,7 +25,9 @@ pub struct PdfParser {
 
 impl PdfParser {
     pub fn new() -> Self {
-        Self { resolver: Box::new(RuleBasedResolver) }
+        Self {
+            resolver: Box::new(RuleBasedResolver),
+        }
     }
 
     /// See `tidyrs_csv::CsvParser::with_resolver` — same idea, same
@@ -196,7 +196,10 @@ impl TidyParser for PdfParser {
             .map(|(i, h)| if h.is_empty() { format!("column_{}", i + 1) } else { h })
             .collect();
 
-        let raw_rows: Vec<Vec<String>> = table_lines[1..].iter().map(|line| spans.iter().map(|&s| extract_span(line, s)).collect()).collect();
+        let raw_rows: Vec<Vec<String>> = table_lines[1..]
+            .iter()
+            .map(|line| spans.iter().map(|&s| extract_span(line, s)).collect())
+            .collect();
         let typed = tidyrs_core::type_columns(&headers, &raw_rows, self.resolver.as_ref());
         for (col, guess, confidence) in &typed.ambiguous_columns {
             report.info(format!(
@@ -209,9 +212,6 @@ impl TidyParser for PdfParser {
         table.normalize_row_widths();
         report.rows_out = table.rows.len();
 
-        Ok(ParseOutcome {
-            tables: vec![table],
-            report,
-        })
+        Ok(ParseOutcome { tables: vec![table], report })
     }
 }

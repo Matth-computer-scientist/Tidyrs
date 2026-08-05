@@ -76,9 +76,7 @@ impl AmbiguityResolver for RuleBasedResolver {
 }
 
 fn looks_like_date(s: &str) -> bool {
-    let digits_and_seps = s
-        .chars()
-        .all(|c| c.is_ascii_digit() || c == '-' || c == '/' || c == '.');
+    let digits_and_seps = s.chars().all(|c| c.is_ascii_digit() || c == '-' || c == '/' || c == '.');
     let has_two_seps = s.chars().filter(|&c| c == '-' || c == '/' || c == '.').count() >= 2;
     digits_and_seps && has_two_seps && s.len() >= 6 && s.len() <= 10
 }
@@ -130,8 +128,7 @@ mod llm {
         /// `TIDYLOOM_LLM_BASE_URL` (default: OpenAI's API), `TIDYLOOM_LLM_API_KEY`
         /// (required), `TIDYLOOM_LLM_MODEL` (default: "gpt-4o-mini").
         pub fn from_env() -> Result<Self, String> {
-            let api_key = std::env::var("TIDYLOOM_LLM_API_KEY")
-                .map_err(|_| "TIDYLOOM_LLM_API_KEY is not set".to_string())?;
+            let api_key = std::env::var("TIDYLOOM_LLM_API_KEY").map_err(|_| "TIDYLOOM_LLM_API_KEY is not set".to_string())?;
             Ok(Self {
                 base_url: std::env::var("TIDYLOOM_LLM_BASE_URL").unwrap_or_else(|_| "https://api.openai.com/v1".to_string()),
                 api_key,

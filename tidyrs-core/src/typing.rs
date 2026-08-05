@@ -52,8 +52,14 @@ fn convert_column(guess: &ColumnTypeGuess, raw_values: &[String]) -> Vec<TidyVal
                 return TidyValue::Null;
             }
             match guess {
-                ColumnTypeGuess::Integer => trimmed.parse::<i64>().map(TidyValue::Int).unwrap_or_else(|_| TidyValue::Text(trimmed.to_string())),
-                ColumnTypeGuess::Float => trimmed.parse::<f64>().map(TidyValue::Float).unwrap_or_else(|_| TidyValue::Text(trimmed.to_string())),
+                ColumnTypeGuess::Integer => trimmed
+                    .parse::<i64>()
+                    .map(TidyValue::Int)
+                    .unwrap_or_else(|_| TidyValue::Text(trimmed.to_string())),
+                ColumnTypeGuess::Float => trimmed
+                    .parse::<f64>()
+                    .map(TidyValue::Float)
+                    .unwrap_or_else(|_| TidyValue::Text(trimmed.to_string())),
                 ColumnTypeGuess::Boolean => match trimmed.to_ascii_lowercase().as_str() {
                     "true" | "yes" => TidyValue::Bool(true),
                     "false" | "no" => TidyValue::Bool(false),

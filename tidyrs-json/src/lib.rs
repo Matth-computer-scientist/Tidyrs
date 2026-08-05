@@ -94,7 +94,10 @@ impl TidyParser for JsonXmlParser {
         })?;
 
         let mut report = CleaningReport::new(filename, if kind == Kind::Json { "json" } else { "xml" });
-        report.warning("json/xml support is experimental in this version: flattening uses a simple documented strategy, not a fully general one (see README)".to_string());
+        report.warning(
+            "json/xml support is experimental in this version: flattening uses a simple documented strategy, not a fully general one (see README)"
+                .to_string(),
+        );
 
         let text = String::from_utf8_lossy(bytes).into_owned();
         let root: Value = match kind {
@@ -121,8 +124,7 @@ impl TidyParser for JsonXmlParser {
             explode_arrays,
         };
 
-        let flattened: Vec<std::collections::BTreeMap<String, TidyValue>> =
-            records.iter().flat_map(|r| flatten_record(r, &cfg)).collect();
+        let flattened: Vec<std::collections::BTreeMap<String, TidyValue>> = records.iter().flat_map(|r| flatten_record(r, &cfg)).collect();
         if explode_arrays && flattened.len() != records.len() {
             report.info(format!(
                 "array_mode=explode: {} input record(s) expanded into {} row(s)",
@@ -151,9 +153,6 @@ impl TidyParser for JsonXmlParser {
         }
         report.rows_out = table.rows.len();
 
-        Ok(ParseOutcome {
-            tables: vec![table],
-            report,
-        })
+        Ok(ParseOutcome { tables: vec![table], report })
     }
 }

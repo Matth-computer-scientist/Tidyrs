@@ -41,7 +41,11 @@ fn init_logging(format: &str) {
     if format == "json" {
         let stdout_layer = fmt::layer().json().with_writer(std::io::stdout).with_filter(filter_fn(is_stdout_level));
         let stderr_layer = fmt::layer().json().with_writer(std::io::stderr).with_filter(filter_fn(is_stderr_level));
-        tracing_subscriber::registry().with(env_filter()).with(stdout_layer).with(stderr_layer).init();
+        tracing_subscriber::registry()
+            .with(env_filter())
+            .with(stdout_layer)
+            .with(stderr_layer)
+            .init();
     } else {
         let stdout_layer = fmt::layer()
             .compact()
@@ -55,7 +59,11 @@ fn init_logging(format: &str) {
             .with_target(false)
             .with_writer(std::io::stderr)
             .with_filter(filter_fn(is_stderr_level));
-        tracing_subscriber::registry().with(env_filter()).with(stdout_layer).with(stderr_layer).init();
+        tracing_subscriber::registry()
+            .with(env_filter())
+            .with(stdout_layer)
+            .with(stderr_layer)
+            .init();
     }
 }
 
@@ -368,8 +376,8 @@ fn process_file(registry: &FormatRegistry, input: &Path, out_target: &Path, repo
             let in_file = std::fs::File::open(input).with_context(|| format!("reading {}", input.display()))?;
             let out_file = std::fs::File::create(out_target).with_context(|| format!("writing {}", out_target.display()))?;
             let parse_opts = parse_options_for(opts);
-            let report = tidyrs_csv::stream_clean_csv(in_file, out_file, filename, &parse_opts)
-                .with_context(|| format!("streaming {}", input.display()))?;
+            let report =
+                tidyrs_csv::stream_clean_csv(in_file, out_file, filename, &parse_opts).with_context(|| format!("streaming {}", input.display()))?;
             print_report(&report, opts.verbose_report);
             if let Some(report_path) = report_target {
                 write_report(&report, report_path)?;
@@ -427,12 +435,17 @@ fn process_file(registry: &FormatRegistry, input: &Path, out_target: &Path, repo
                 );
                 for issue in &validation.issues {
                     match issue.row {
-                        Some(r) => tracing::warn!(file = %label, row = r, column = %issue.column, "    row {r}, column '{}': {}", issue.column, issue.message),
+                        Some(r) => {
+                            tracing::warn!(file = %label, row = r, column = %issue.column, "    row {r}, column '{}': {}", issue.column, issue.message)
+                        }
                         None => tracing::warn!(file = %label, column = %issue.column, "    column '{}': {}", issue.column, issue.message),
                     }
                 }
                 if reject {
-                    bail!("{label}: schema validation failed with {} violation(s) (--on-schema-violation reject)", validation.issues.len());
+                    bail!(
+                        "{label}: schema validation failed with {} violation(s) (--on-schema-violation reject)",
+                        validation.issues.len()
+                    );
                 }
             }
         }
@@ -490,7 +503,12 @@ fn render_table_bytes(table: &TidyTable, output_format: &str) -> Result<Option<V
 /// if there is one, or a short preview of what would be created.
 fn preview_or_diff(table: &TidyTable, output_format: &str, path: &Path) -> Result<()> {
     let Some(new_bytes) = render_table_bytes(table, output_format)? else {
-        println!("[dry-run] {}: would write a parquet file ({} rows, {} columns) — binary, no preview", path.display(), table.rows.len(), table.headers.len());
+        println!(
+            "[dry-run] {}: would write a parquet file ({} rows, {} columns) — binary, no preview",
+            path.display(),
+            table.rows.len(),
+            table.headers.len()
+        );
         return Ok(());
     };
     let new_text = String::from_utf8_lossy(&new_bytes);
@@ -570,8 +588,16 @@ fn main() -> Result<()> {
             let cfg = config::load(config_path.as_deref())?;
             let d = &cfg.defaults;
 
-            let has_header = if no_header { false } else { config::merge_bool(has_header, d.has_header) };
-            let merge_fill = if no_merge_fill { false } else { config::merge_bool(merge_fill, d.merge_fill) };
+            let has_header = if no_header {
+                false
+            } else {
+                config::merge_bool(has_header, d.has_header)
+            };
+            let merge_fill = if no_merge_fill {
+                false
+            } else {
+                config::merge_bool(merge_fill, d.merge_fill)
+            };
 
             let opts = RunOptions {
                 format: config::merge_opt(format, d.format.clone()),
@@ -626,7 +652,11 @@ fn main() -> Result<()> {
                             }
                         }
                     }
-                    tracing::info!(cleaned = count, failed = failures, "batch complete: {count} file(s) cleaned, {failures} failure(s)");
+                    tracing::info!(
+                        cleaned = count,
+                        failed = failures,
+                        "batch complete: {count} file(s) cleaned, {failures} failure(s)"
+                    );
                 }
             }
         }

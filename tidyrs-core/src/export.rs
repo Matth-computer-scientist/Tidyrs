@@ -63,7 +63,11 @@ fn infer_column_plan(cells: &[TidyValue]) -> ColumnPlan {
 }
 
 fn column_cells(table: &TidyTable, col_idx: usize) -> Vec<TidyValue> {
-    table.rows.iter().map(|row| row.get(col_idx).cloned().unwrap_or(TidyValue::Null)).collect()
+    table
+        .rows
+        .iter()
+        .map(|row| row.get(col_idx).cloned().unwrap_or(TidyValue::Null))
+        .collect()
 }
 
 /// Writes a table as Parquet, inferring one of Int64/Double/Boolean/Utf8
@@ -79,9 +83,7 @@ pub fn write_parquet_file(table: &TidyTable, path: &std::path::Path) -> TidyResu
     use parquet::file::writer::SerializedFileWriter;
     use parquet::schema::types::Type as SchemaType;
 
-    let plans: Vec<ColumnPlan> = (0..table.headers.len())
-        .map(|i| infer_column_plan(&column_cells(table, i)))
-        .collect();
+    let plans: Vec<ColumnPlan> = (0..table.headers.len()).map(|i| infer_column_plan(&column_cells(table, i))).collect();
 
     let fields: Vec<Arc<SchemaType>> = table
         .headers
@@ -92,9 +94,7 @@ pub fn write_parquet_file(table: &TidyTable, path: &std::path::Path) -> TidyResu
                 ColumnPlan::Int64 => SchemaType::primitive_type_builder(h, PhysicalType::INT64),
                 ColumnPlan::Double => SchemaType::primitive_type_builder(h, PhysicalType::DOUBLE),
                 ColumnPlan::Boolean => SchemaType::primitive_type_builder(h, PhysicalType::BOOLEAN),
-                ColumnPlan::Utf8 => {
-                    SchemaType::primitive_type_builder(h, PhysicalType::BYTE_ARRAY).with_converted_type(ConvertedType::UTF8)
-                }
+                ColumnPlan::Utf8 => SchemaType::primitive_type_builder(h, PhysicalType::BYTE_ARRAY).with_converted_type(ConvertedType::UTF8),
             };
             builder = builder.with_repetition(Repetition::OPTIONAL);
             Arc::new(builder.build().expect("valid parquet primitive type"))
@@ -130,7 +130,8 @@ pub fn write_parquet_file(table: &TidyTable, path: &std::path::Path) -> TidyResu
                         _ => None,
                     })
                     .collect();
-                w.write_batch(&values, Some(&def_levels), None).map_err(|e| TidyError::Export(e.to_string()))?;
+                w.write_batch(&values, Some(&def_levels), None)
+                    .map_err(|e| TidyError::Export(e.to_string()))?;
             }
             (ColumnPlan::Double, ColumnWriter::DoubleColumnWriter(ref mut w)) => {
                 let values: Vec<f64> = cells
@@ -141,7 +142,8 @@ pub fn write_parquet_file(table: &TidyTable, path: &std::path::Path) -> TidyResu
                         _ => None,
                     })
                     .collect();
-                w.write_batch(&values, Some(&def_levels), None).map_err(|e| TidyError::Export(e.to_string()))?;
+                w.write_batch(&values, Some(&def_levels), None)
+                    .map_err(|e| TidyError::Export(e.to_string()))?;
             }
             (ColumnPlan::Boolean, ColumnWriter::BoolColumnWriter(ref mut w)) => {
                 let values: Vec<bool> = cells
@@ -151,7 +153,8 @@ pub fn write_parquet_file(table: &TidyTable, path: &std::path::Path) -> TidyResu
                         _ => None,
                     })
                     .collect();
-                w.write_batch(&values, Some(&def_levels), None).map_err(|e| TidyError::Export(e.to_string()))?;
+                w.write_batch(&values, Some(&def_levels), None)
+                    .map_err(|e| TidyError::Export(e.to_string()))?;
             }
             (ColumnPlan::Utf8, ColumnWriter::ByteArrayColumnWriter(ref mut w)) => {
                 let values: Vec<ByteArray> = cells
@@ -159,7 +162,8 @@ pub fn write_parquet_file(table: &TidyTable, path: &std::path::Path) -> TidyResu
                     .filter(|v| !v.is_null())
                     .map(|v| ByteArray::from(v.as_export_string().as_bytes().to_vec()))
                     .collect();
-                w.write_batch(&values, Some(&def_levels), None).map_err(|e| TidyError::Export(e.to_string()))?;
+                w.write_batch(&values, Some(&def_levels), None)
+                    .map_err(|e| TidyError::Export(e.to_string()))?;
             }
             _ => unreachable!("column writer physical type always matches the schema built from the same plan"),
         }

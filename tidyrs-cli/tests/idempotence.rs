@@ -16,7 +16,14 @@ fn fixture(dir: &str, name: &str) -> PathBuf {
 }
 
 fn clean_to(input: &Path, output: &Path) {
-    Command::cargo_bin("tidyloom").unwrap().arg("clean").arg(input).arg("--output").arg(output).assert().success();
+    Command::cargo_bin("tidyloom")
+        .unwrap()
+        .arg("clean")
+        .arg(input)
+        .arg("--output")
+        .arg(output)
+        .assert()
+        .success();
 }
 
 fn assert_second_pass_is_a_no_op(input: &Path) {

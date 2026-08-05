@@ -131,7 +131,10 @@ fn process_sheet(sheet_name: &str, mut rows: Vec<Vec<Data>>, strategy: MergeStra
     if let MergeStrategy::Exact(regions) = &strategy {
         if !regions.is_empty() {
             merge_fill_exact(&mut rows, regions);
-            report.info(format!("sheet '{sheet_name}': filled {} merged region(s) using exact boundaries", regions.len()));
+            report.info(format!(
+                "sheet '{sheet_name}': filled {} merged region(s) using exact boundaries",
+                regions.len()
+            ));
         }
     }
 

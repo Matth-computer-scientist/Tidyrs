@@ -4,6 +4,7 @@
 library and CLI you drop into a script, a cron job, or a CI/CD pipeline —
 not a desktop app, not a SaaS, not something a human has to click through.
 
+[![CI](https://github.com/Matth-computer-scientist/Tidyrs/actions/workflows/ci.yml/badge.svg)](https://github.com/Matth-computer-scientist/Tidyrs/actions/workflows/ci.yml)
 [![License: MIT OR Apache-2.0](https://img.shields.io/badge/license-MIT%20OR%20Apache--2.0-blue.svg)](#license)
 ![Rust edition 2021](https://img.shields.io/badge/rust-2021%20edition-orange.svg)
 
@@ -451,17 +452,22 @@ one — so very large workbooks remain the most likely bottleneck; convert
 to CSV upstream if that matters for your use case.
 
 Rough numbers on a dev machine, release build (`cargo run -p
-tidyrs-cli --release --example bench_large_files`):
+tidyrs-cli --release --example bench_large_files`; see the file for the
+methodology caveat — synthetic uniform data, single machine, not a
+real-world corpus):
 
-| Rows | CSV file size | CSV parse time | XLSX file size | XLSX parse time |
-|---|---|---|---|---|
-| 10,000 | 0.3 MB | 44 ms | 0.2 MB | 201 ms |
-| 100,000 | 3.8 MB | 337 ms | 2.2 MB | 2.04 s |
-| 500,000 | 20.0 MB | 1.83 s | *(not benched — generation itself gets slow)* | |
+| Rows | CSV file size | CSV parse (in-memory) | CSV parse (`--stream`) | XLSX file size | XLSX parse time |
+|---|---|---|---|---|---|
+| 10,000 | 0.3 MB | 113 ms | 49 ms | 0.2 MB | 263 ms |
+| 100,000 | 3.8 MB | 1.69 s | 439 ms | 2.2 MB | 2.49 s |
+| 500,000 | 20.0 MB | 5.62 s | 2.25 s | *(not benched — generation itself gets slow)* | |
 
 CSV scales close to linearly and comfortably handles files in the
-hundreds-of-MB range even without `--stream`; `--stream` mainly helps
-bound peak memory rather than wall-clock time.
+hundreds-of-MB range even without `--stream`. `--stream` isn't just a
+memory bound here — it's also consistently ~2.5x faster wall-clock, since
+it writes rows straight through as text instead of building a typed
+`TidyValue` per cell; that's a genuine reason to reach for it beyond
+"the file is huge," not only a memory-pressure escape hatch.
 
 ## Reliability notes
 
@@ -499,8 +505,8 @@ Some fixtures are generated rather than hand-written (binary formats like
 `.xlsx`/`.pdf`); regenerate them if you change the generator:
 
 ```sh
-cargo run -p tidyrs-xlsx --example gen_fixtures
-cargo run -p tidyrs-pdf --example gen_fixtures
+cargo run -p tidyrs-xlsx --example gen_fixtures_xlsx
+cargo run -p tidyrs-pdf --example gen_fixtures_pdf
 ```
 
 ## Contributing
@@ -521,7 +527,17 @@ behavior should come with a fixture + test the same way existing formats
 do (see any `tests/fixtures.rs` for the pattern). Robustness matters here
 more than in most projects — if you touch a parser, run its
 `tests/robustness.rs` suite (`cargo test -p <crate> --test robustness`)
-before and after.
+before and after. `cargo fmt --all -- --check` and `cargo clippy
+--workspace --all-targets -- -D warnings` must both be clean — CI enforces
+this on every push/PR (see the badge above and `.github/workflows/ci.yml`).
+
+### Releasing (maintainers)
+
+Pushing a tag matching `v*.*.*` (e.g. `v0.1.0`) triggers
+`.github/workflows/release.yml`, which builds `tidyloom` for
+Linux/macOS (x86_64 + aarch64)/Windows and attaches the binaries to a
+GitHub Release. Not published to crates.io yet — see
+[Installation](#installation).
 
 ## License
 

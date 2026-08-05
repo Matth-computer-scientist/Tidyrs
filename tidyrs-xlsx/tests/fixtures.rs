@@ -3,7 +3,7 @@ use tidyrs_xlsx::XlsxParser;
 
 fn fixture(name: &str) -> Vec<u8> {
     let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../fixtures/xlsx").join(name);
-    std::fs::read(path).unwrap_or_else(|e| panic!("missing fixture {name} (run `cargo run -p tidyrs-xlsx --example gen_fixtures`): {e}"))
+    std::fs::read(path).unwrap_or_else(|e| panic!("missing fixture {name} (run `cargo run -p tidyrs-xlsx --example gen_fixtures_xlsx`): {e}"))
 }
 
 #[test]

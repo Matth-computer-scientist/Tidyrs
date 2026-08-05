@@ -147,7 +147,14 @@ fn dry_run_reports_unchanged_when_output_already_matches() {
     let tmp = tempfile::tempdir().unwrap();
     let out = tmp.path().join("out.csv");
 
-    Command::cargo_bin("tidyloom").unwrap().arg("clean").arg(fixture("csv", "pipe_delimited.csv")).arg("--output").arg(&out).assert().success();
+    Command::cargo_bin("tidyloom")
+        .unwrap()
+        .arg("clean")
+        .arg(fixture("csv", "pipe_delimited.csv"))
+        .arg("--output")
+        .arg(&out)
+        .assert()
+        .success();
     let before = std::fs::read_to_string(&out).unwrap();
 
     Command::cargo_bin("tidyloom")
@@ -170,7 +177,14 @@ fn dry_run_shows_a_diff_against_a_different_existing_output() {
     let tmp = tempfile::tempdir().unwrap();
     let out = tmp.path().join("out.csv");
 
-    Command::cargo_bin("tidyloom").unwrap().arg("clean").arg(fixture("csv", "pipe_delimited.csv")).arg("--output").arg(&out).assert().success();
+    Command::cargo_bin("tidyloom")
+        .unwrap()
+        .arg("clean")
+        .arg(fixture("csv", "pipe_delimited.csv"))
+        .arg("--output")
+        .arg(&out)
+        .assert()
+        .success();
 
     Command::cargo_bin("tidyloom")
         .unwrap()
@@ -220,7 +234,10 @@ verbose_report = true
         .stdout(predicate::str::contains("detected delimiter: ','")); // only printed because verbose_report came from config
 
     let content = std::fs::read_to_string(&out).unwrap();
-    assert!(content.lines().next().unwrap().contains('|'), "comma delimiter from config should have left the pipes intact in one column");
+    assert!(
+        content.lines().next().unwrap().contains('|'),
+        "comma delimiter from config should have left the pipes intact in one column"
+    );
 
     // Now pass --delimiter explicitly: the CLI flag must win over the config file.
     let out2 = tmp.path().join("out2.csv");
@@ -248,7 +265,14 @@ fn missing_config_file_is_not_an_error_when_not_explicitly_requested() {
 
     // No --config passed and no ./tidyloom.toml in the test's cwd:
     // should just behave like there's no config at all.
-    Command::cargo_bin("tidyloom").unwrap().arg("clean").arg(fixture("csv", "pipe_delimited.csv")).arg("--output").arg(&out).assert().success();
+    Command::cargo_bin("tidyloom")
+        .unwrap()
+        .arg("clean")
+        .arg(fixture("csv", "pipe_delimited.csv"))
+        .arg("--output")
+        .arg(&out)
+        .assert()
+        .success();
 
     assert!(out.exists());
 }
@@ -295,7 +319,10 @@ fn log_format_json_emits_one_parseable_json_object_per_line_on_stdout() {
     for line in &lines {
         let parsed: serde_json::Value = serde_json::from_str(line).unwrap_or_else(|e| panic!("line was not valid JSON: {e}\nline: {line}"));
         assert!(parsed.get("level").is_some(), "expected a 'level' field: {line}");
-        assert!(parsed.get("fields").and_then(|f| f.get("message")).is_some(), "expected fields.message: {line}");
+        assert!(
+            parsed.get("fields").and_then(|f| f.get("message")).is_some(),
+            "expected fields.message: {line}"
+        );
         if parsed["fields"]["message"].as_str().unwrap_or("").contains("detected: csv") {
             found_summary = true;
             assert_eq!(parsed["fields"]["rows_out"], 4);

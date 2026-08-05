@@ -10,9 +10,7 @@ fn parses_a_well_formed_classification_response() {
         .match_header("authorization", "Bearer test-key")
         .with_status(200)
         .with_header("content-type", "application/json")
-        .with_body(
-            r#"{"choices":[{"message":{"content":"{\"type\": \"date\", \"confidence\": 0.87}"}}]}"#,
-        )
+        .with_body(r#"{"choices":[{"message":{"content":"{\"type\": \"date\", \"confidence\": 0.87}"}}]}"#)
         .create();
 
     let resolver = HttpLlmResolver::new(server.url(), "test-key", "gpt-4o-mini");

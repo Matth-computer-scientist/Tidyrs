@@ -18,13 +18,13 @@ pub mod value;
 
 pub use detect::{Detection, FormatRegistry};
 pub use error::{TidyError, TidyResult};
-pub use heuristics::{AmbiguityResolver, ColumnTypeGuess, LlmAmbiguityResolver, RuleBasedResolver};
 #[cfg(feature = "llm")]
 pub use heuristics::HttpLlmResolver;
+pub use heuristics::{AmbiguityResolver, ColumnTypeGuess, LlmAmbiguityResolver, RuleBasedResolver};
 pub use options::ParseOptions;
 pub use parser::{ParseOutcome, TidyParser};
 pub use report::{CleaningNote, CleaningReport, Severity};
 pub use schema::{validate, ColumnSchema, ExpectedType, Schema, ValidationIssue, ValidationReport};
-pub use typing::{type_columns, TypedColumns};
 pub use table::TidyTable;
+pub use typing::{type_columns, TypedColumns};
 pub use value::TidyValue;

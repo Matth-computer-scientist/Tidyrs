@@ -1,5 +1,5 @@
 //! Generates the .pdf fixtures committed under fixtures/pdf/. Run with
-//! `cargo run -p tidyrs-pdf --example gen_fixtures` to regenerate. Uses a
+//! `cargo run -p tidyrs-pdf --example gen_fixtures_pdf` to regenerate. Uses a
 //! monospaced (Courier) built-in font and pre-padded text lines so the
 //! whitespace-alignment column heuristic in tidyrs-pdf has a realistic
 //! chance of reconstructing the table — real-world PDFs from proportional

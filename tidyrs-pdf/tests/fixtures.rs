@@ -3,7 +3,7 @@ use tidyrs_pdf::PdfParser;
 
 fn fixture(name: &str) -> Vec<u8> {
     let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../fixtures/pdf").join(name);
-    std::fs::read(path).unwrap_or_else(|e| panic!("missing fixture {name} (run `cargo run -p tidyrs-pdf --example gen_fixtures`): {e}"))
+    std::fs::read(path).unwrap_or_else(|e| panic!("missing fixture {name} (run `cargo run -p tidyrs-pdf --example gen_fixtures_pdf`): {e}"))
 }
 
 #[test]
@@ -56,7 +56,9 @@ fn proportional_font_table_built_from_per_field_text_calls_is_reconstructed() {
     // Real-world generated PDFs (invoices, reports) are built this way.
     let bytes = fixture("proportional_font_per_field_table.pdf");
     let parser = PdfParser::new();
-    let outcome = parser.parse(&bytes, "proportional_font_per_field_table.pdf", &ParseOptions::new()).unwrap();
+    let outcome = parser
+        .parse(&bytes, "proportional_font_per_field_table.pdf", &ParseOptions::new())
+        .unwrap();
     let table = &outcome.tables[0];
 
     assert_eq!(table.headers, vec!["name", "age", "city"]);

@@ -72,7 +72,12 @@ pub fn xml_to_value(xml: &str) -> Result<Value, String> {
                     let val = String::from_utf8_lossy(&a.value).to_string();
                     attrs.insert(format!("@{key}"), Value::String(val));
                 }
-                stack.push(Node { tag, attrs, children: Vec::new(), text: String::new() });
+                stack.push(Node {
+                    tag,
+                    attrs,
+                    children: Vec::new(),
+                    text: String::new(),
+                });
             }
             Ok(Event::Empty(e)) => {
                 let tag = String::from_utf8_lossy(e.name().as_ref()).to_string();
@@ -82,7 +87,12 @@ pub fn xml_to_value(xml: &str) -> Result<Value, String> {
                     let val = String::from_utf8_lossy(&a.value).to_string();
                     attrs.insert(format!("@{key}"), Value::String(val));
                 }
-                let node = Node { tag, attrs, children: Vec::new(), text: String::new() };
+                let node = Node {
+                    tag,
+                    attrs,
+                    children: Vec::new(),
+                    text: String::new(),
+                };
                 if let Some(parent) = stack.last_mut() {
                     parent.children.push(node);
                 } else {

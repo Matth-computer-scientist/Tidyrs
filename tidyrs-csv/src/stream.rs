@@ -85,7 +85,11 @@ pub fn stream_clean_csv<R: Read, W: Write>(mut input: R, output: W, filename: &s
     let has_header = options.get_bool("has_header", true);
     let chained = std::io::Cursor::new(prefix).chain(input);
 
-    let mut rdr = csv::ReaderBuilder::new().delimiter(delimiter).flexible(true).has_headers(false).from_reader(chained);
+    let mut rdr = csv::ReaderBuilder::new()
+        .delimiter(delimiter)
+        .flexible(true)
+        .has_headers(false)
+        .from_reader(chained);
     let mut wtr = csv::Writer::from_writer(output);
 
     let mut expected_width: Option<usize> = None;

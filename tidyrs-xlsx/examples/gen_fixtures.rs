@@ -1,5 +1,5 @@
 //! Generates the .xlsx fixtures committed under fixtures/xlsx/. Run with
-//! `cargo run -p tidyrs-xlsx --example gen_fixtures` whenever the fixtures
+//! `cargo run -p tidyrs-xlsx --example gen_fixtures_xlsx` whenever the fixtures
 //! need to be regenerated; the resulting files are checked into the repo
 //! so tests don't depend on re-running this.
 

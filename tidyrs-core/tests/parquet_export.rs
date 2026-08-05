@@ -4,9 +4,19 @@ use tidyrs_core::{export, TidyTable, TidyValue};
 #[test]
 fn columns_get_a_narrow_type_instead_of_all_strings() {
     let mut table = TidyTable::new(vec!["id".into(), "score".into(), "active".into(), "label".into()]);
-    table.push_row(vec![TidyValue::Int(1), TidyValue::Int(10), TidyValue::Bool(true), TidyValue::Text("a".into())]);
+    table.push_row(vec![
+        TidyValue::Int(1),
+        TidyValue::Int(10),
+        TidyValue::Bool(true),
+        TidyValue::Text("a".into()),
+    ]);
     table.push_row(vec![TidyValue::Int(2), TidyValue::Float(2.5), TidyValue::Bool(false), TidyValue::Int(42)]);
-    table.push_row(vec![TidyValue::Int(3), TidyValue::Null, TidyValue::Bool(true), TidyValue::Text("c".into())]);
+    table.push_row(vec![
+        TidyValue::Int(3),
+        TidyValue::Null,
+        TidyValue::Bool(true),
+        TidyValue::Text("c".into()),
+    ]);
 
     let dir = tempfile::tempdir().unwrap();
     let path = dir.path().join("out.parquet");

@@ -81,7 +81,11 @@ fn one_bad_value_does_not_downgrade_the_whole_numeric_column_to_text() {
     assert_eq!(table.rows[1][2], TidyValue::Text("N/A".to_string())); // Bob's score
 
     assert!(outcome.report.notes.iter().any(|n| n.message.contains("column 'age': type is ambiguous")));
-    assert!(outcome.report.notes.iter().any(|n| n.message.contains("column 'score': type is ambiguous")));
+    assert!(outcome
+        .report
+        .notes
+        .iter()
+        .any(|n| n.message.contains("column 'score': type is ambiguous")));
 }
 
 #[test]
@@ -92,7 +96,9 @@ fn quoted_commas_do_not_fool_delimiter_detection() {
     // the wrong one. Quote-aware counting must still find semicolon.
     let bytes = fixture("quoted_commas_confuse_naive_sniffing.csv");
     let parser = CsvParser::new();
-    let outcome = parser.parse(&bytes, "quoted_commas_confuse_naive_sniffing.csv", &ParseOptions::new()).unwrap();
+    let outcome = parser
+        .parse(&bytes, "quoted_commas_confuse_naive_sniffing.csv", &ParseOptions::new())
+        .unwrap();
     let table = &outcome.tables[0];
 
     assert_eq!(table.headers, vec!["name", "bio", "age"]);

@@ -13,3 +13,7 @@ calamine = "0.26"
 [dev-dependencies]
 rust_xlsxwriter = "0.96"
 proptest = "1"
+
+[[example]]
+name = "gen_fixtures_xlsx"
+path = "examples/gen_fixtures.rs"

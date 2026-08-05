@@ -4,6 +4,12 @@
 //! documented "everything loads into memory" limitation instead of
 //! leaving it as an unverified claim. Run with:
 //! `cargo run -p tidyrs-cli --release --example bench_large_files`
+//!
+//! Methodology note: this generates synthetic files (uniform rows, no
+//! real-world irregularity) on whatever machine runs it — it is not a
+//! benchmark against a real-world corpus, and the numbers will vary by
+//! hardware. It exists to catch regressions and support order-of-magnitude
+//! claims ("CSV scales close to linearly"), not to be a precise SLA.
 
 use rust_xlsxwriter::Workbook;
 use std::io::Write;
@@ -51,9 +57,20 @@ fn main() {
         time_it("  generate csv", || generate_csv(&csv_path, rows));
         let csv_bytes = std::fs::read(&csv_path).unwrap();
         println!("  csv file size: {:.1} MB", csv_bytes.len() as f64 / 1_000_000.0);
+
         let parser = tidyrs_csv::CsvParser::new();
-        let outcome = time_it("  parse csv", || parser.parse(&csv_bytes, "bench.csv", &ParseOptions::new()).unwrap());
+        let outcome = time_it("  parse csv (in-memory)", || {
+            parser.parse(&csv_bytes, "bench.csv", &ParseOptions::new()).unwrap()
+        });
         assert_eq!(outcome.tables[0].rows.len(), rows);
+
+        let stream_out_path = dir.join(format!("bench_{rows}_stream_out.csv"));
+        time_it("  parse csv (--stream, bounded memory)", || {
+            let input = std::fs::File::open(&csv_path).unwrap();
+            let output = std::fs::File::create(&stream_out_path).unwrap();
+            tidyrs_csv::stream_clean_csv(input, output, "bench.csv", &ParseOptions::new()).unwrap()
+        });
+        std::fs::remove_file(&stream_out_path).ok();
         std::fs::remove_file(&csv_path).ok();
 
         // Excel gets slow to *generate* well before it's interesting to

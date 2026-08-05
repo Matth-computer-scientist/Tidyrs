@@ -7,7 +7,10 @@ fn fixture(dir: &str, name: &str) -> Vec<u8> {
 }
 
 fn col<'a>(headers: &[String], row: &'a [TidyValue], name: &str) -> &'a TidyValue {
-    let idx = headers.iter().position(|h| h == name).unwrap_or_else(|| panic!("no column '{name}' in {headers:?}"));
+    let idx = headers
+        .iter()
+        .position(|h| h == name)
+        .unwrap_or_else(|| panic!("no column '{name}' in {headers:?}"));
     &row[idx]
 }
 
@@ -42,8 +45,15 @@ fn wrapper_array_under_a_key_is_used_as_the_row_source() {
     assert_eq!(table.rows.len(), 2);
     assert!(table.headers.contains(&"supplier.name".to_string()));
     assert_eq!(col(&table.headers, &table.rows[0], "sku"), &TidyValue::Text("A1".to_string()));
-    assert_eq!(col(&table.headers, &table.rows[1], "supplier.country"), &TidyValue::Text("DE".to_string()));
-    assert!(outcome.report.notes.iter().any(|n| n.message.contains("used array found under key 'items'")));
+    assert_eq!(
+        col(&table.headers, &table.rows[1], "supplier.country"),
+        &TidyValue::Text("DE".to_string())
+    );
+    assert!(outcome
+        .report
+        .notes
+        .iter()
+        .any(|n| n.message.contains("used array found under key 'items'")));
 }
 
 #[test]
@@ -89,7 +99,11 @@ fn explode_array_mode_expands_line_items_into_extra_rows() {
     let skus: Vec<&TidyValue> = table.rows.iter().map(|r| col(&table.headers, r, "items.sku")).collect();
     assert_eq!(
         skus,
-        vec![&TidyValue::Text("A1".to_string()), &TidyValue::Text("A2".to_string()), &TidyValue::Text("B1".to_string())]
+        vec![
+            &TidyValue::Text("A1".to_string()),
+            &TidyValue::Text("A2".to_string()),
+            &TidyValue::Text("B1".to_string())
+        ]
     );
     assert!(outcome.report.notes.iter().any(|n| n.message.contains("expanded into")));
 }

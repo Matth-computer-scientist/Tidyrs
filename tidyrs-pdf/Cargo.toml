@@ -13,3 +13,7 @@ pdf-extract = "0.7"
 [dev-dependencies]
 printpdf = "0.7"
 proptest = "1"
+
+[[example]]
+name = "gen_fixtures_pdf"
+path = "examples/gen_fixtures.rs"

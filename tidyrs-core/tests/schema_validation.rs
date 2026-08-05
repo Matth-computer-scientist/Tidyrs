@@ -2,9 +2,24 @@ use tidyrs_core::{validate, Schema, TidyTable, TidyValue};
 
 fn sample_table() -> TidyTable {
     let mut t = TidyTable::new(vec!["id".into(), "name".into(), "amount".into(), "active".into()]);
-    t.push_row(vec![TidyValue::Int(1), TidyValue::Text("Alice".into()), TidyValue::Float(9.99), TidyValue::Bool(true)]);
-    t.push_row(vec![TidyValue::Int(2), TidyValue::Text("Bob".into()), TidyValue::Null, TidyValue::Bool(false)]);
-    t.push_row(vec![TidyValue::Int(3), TidyValue::Text("Carla".into()), TidyValue::Text("oops".into()), TidyValue::Bool(true)]);
+    t.push_row(vec![
+        TidyValue::Int(1),
+        TidyValue::Text("Alice".into()),
+        TidyValue::Float(9.99),
+        TidyValue::Bool(true),
+    ]);
+    t.push_row(vec![
+        TidyValue::Int(2),
+        TidyValue::Text("Bob".into()),
+        TidyValue::Null,
+        TidyValue::Bool(false),
+    ]);
+    t.push_row(vec![
+        TidyValue::Int(3),
+        TidyValue::Text("Carla".into()),
+        TidyValue::Text("oops".into()),
+        TidyValue::Bool(true),
+    ]);
     t
 }
 
@@ -40,7 +55,10 @@ fn non_nullable_column_flags_null_values() {
     let schema = Schema::from_json(schema_json()).unwrap();
     let report = validate(&table, &schema);
 
-    assert!(report.issues.iter().any(|i| i.column == "id" && i.row == Some(1) && i.message.contains("non-nullable")));
+    assert!(report
+        .issues
+        .iter()
+        .any(|i| i.column == "id" && i.row == Some(1) && i.message.contains("non-nullable")));
 }
 
 #[test]
@@ -63,7 +81,10 @@ fn strict_mode_flags_undeclared_columns() {
     schema.columns.retain(|c| c.name != "active"); // leave "active" undeclared
 
     let report = validate(&table, &schema);
-    assert!(report.issues.iter().any(|i| i.row.is_none() && i.column == "active" && i.message.contains("strict mode")));
+    assert!(report
+        .issues
+        .iter()
+        .any(|i| i.row.is_none() && i.column == "active" && i.message.contains("strict mode")));
 }
 
 #[test]

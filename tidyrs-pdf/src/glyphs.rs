@@ -68,7 +68,12 @@ impl OutputDev for GlyphCollector {
         // in `euclid` directly to compute the fully CTM-transformed size.
         let effective_font_size = font_size.abs().max(1.0);
         for c in char.chars() {
-            self.glyphs.push(Glyph { x, y, font_size: effective_font_size, ch: c });
+            self.glyphs.push(Glyph {
+                x,
+                y,
+                font_size: effective_font_size,
+                ch: c,
+            });
         }
         Ok(())
     }

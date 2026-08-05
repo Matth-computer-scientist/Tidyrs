@@ -38,9 +38,6 @@ impl FormatRegistry {
     }
 
     pub fn by_name(&self, name: &str) -> Option<&dyn TidyParser> {
-        self.parsers
-            .iter()
-            .find(|p| p.format_name() == name)
-            .map(|p| p.as_ref())
+        self.parsers.iter().find(|p| p.format_name() == name).map(|p| p.as_ref())
     }
 }

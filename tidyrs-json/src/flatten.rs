@@ -80,7 +80,11 @@ fn flatten_into(value: &Value, prefix: &str, cfg: &FlattenConfig) -> Vec<Row> {
             }
             let mut results = vec![Row::new()];
             for (k, v) in map {
-                let key = if prefix.is_empty() { k.clone() } else { format!("{prefix}{}{k}", cfg.separator) };
+                let key = if prefix.is_empty() {
+                    k.clone()
+                } else {
+                    format!("{prefix}{}{k}", cfg.separator)
+                };
                 let variants = flatten_into(v, &key, cfg);
                 results = cartesian_merge(results, variants);
             }

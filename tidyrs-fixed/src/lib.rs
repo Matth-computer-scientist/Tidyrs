@@ -9,10 +9,7 @@
 //!   run of whitespace (typical of ad-hoc log lines) — field count may
 //!   vary per line.
 
-use tidyrs_core::{
-    AmbiguityResolver, CleaningReport, ParseOptions, ParseOutcome, RuleBasedResolver, TidyError, TidyParser, TidyResult,
-    TidyTable,
-};
+use tidyrs_core::{AmbiguityResolver, CleaningReport, ParseOptions, ParseOutcome, RuleBasedResolver, TidyError, TidyParser, TidyResult, TidyTable};
 
 pub struct FixedWidthParser {
     resolver: Box<dyn AmbiguityResolver>,
@@ -20,7 +17,9 @@ pub struct FixedWidthParser {
 
 impl FixedWidthParser {
     pub fn new() -> Self {
-        Self { resolver: Box::new(RuleBasedResolver) }
+        Self {
+            resolver: Box::new(RuleBasedResolver),
+        }
     }
 
     /// See `tidyrs_csv::CsvParser::with_resolver` — same idea, same
@@ -105,7 +104,9 @@ impl TidyParser for FixedWidthParser {
         }
         // No comma/semicolon/tab/pipe present at all is a decent signal
         // this isn't disguised CSV.
-        let has_delim = lines.iter().any(|l| l.contains(',') || l.contains(';') || l.contains('\t') || l.contains('|'));
+        let has_delim = lines
+            .iter()
+            .any(|l| l.contains(',') || l.contains(';') || l.contains('\t') || l.contains('|'));
         if !has_delim {
             score += 0.3;
         }
@@ -182,7 +183,10 @@ impl TidyParser for FixedWidthParser {
             };
 
             let data_lines = if has_header { &all_lines[1..] } else { &all_lines[..] };
-            let raw_rows: Vec<Vec<String>> = data_lines.iter().map(|line| spans.iter().map(|&s| extract_span(line, s)).collect()).collect();
+            let raw_rows: Vec<Vec<String>> = data_lines
+                .iter()
+                .map(|line| spans.iter().map(|&s| extract_span(line, s)).collect())
+                .collect();
 
             let typed = tidyrs_core::type_columns(&headers, &raw_rows, self.resolver.as_ref());
             report_ambiguous_columns(&mut report, &typed.ambiguous_columns);
@@ -194,9 +198,6 @@ impl TidyParser for FixedWidthParser {
         table.normalize_row_widths();
         report.rows_out = table.rows.len();
 
-        Ok(ParseOutcome {
-            tables: vec![table],
-            report,
-        })
+        Ok(ParseOutcome { tables: vec![table], report })
     }
 }
