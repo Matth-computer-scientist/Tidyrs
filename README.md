@@ -451,6 +451,16 @@ path). Excel has no streaming equivalent — `calamine`'s API doesn't offer
 one — so very large workbooks remain the most likely bottleneck; convert
 to CSV upstream if that matters for your use case.
 
+**`--stream` output is not always byte-for-byte identical to the
+in-memory path**, confirmed with realistic (not uniformly-formatted)
+data in [Real-world scenario tests](#real-world-scenario-tests):
+streaming writes each field's original text straight through, while the
+in-memory path parses numbers and re-serializes them — so `"3756.90"` in
+the source stays `"3756.90"` when streamed but becomes `"3756.9"` from
+the in-memory path. Don't rely on the two being interchangeable for a
+column whose values don't already share one consistent decimal-place
+format.
+
 Rough numbers on a dev machine, release build (`cargo run -p
 tidyrs-cli --release --example bench_large_files`; see the file for the
 methodology caveat — synthetic uniform data, single machine, not a
@@ -486,9 +496,40 @@ instead — see the `catch_unwind` comments in `tidyrs-pdf/src/lib.rs` and
 `tidyrs-cli/tests/idempotence.rs` checks the other reliability property
 that matters for a pipeline tool: cleaning an already-clean file must be a
 no-op (byte-for-byte identical output on a second pass), for every stable
-format. There's no real-world corpus benchmark yet (only synthetic
-fixtures) — that's the natural next step for measuring detection/cleaning
-accuracy beyond "doesn't crash."
+format.
+
+### Real-world scenario tests
+
+Every other test in this repo isolates one specific behavior in a small,
+purpose-built fixture (a few rows, one issue). `tidyrs-cli/tests/real_world_scenarios.rs`
+is different: it runs the CLI end-to-end against larger, deliberately
+messy fixtures under `fixtures/real_world/` (a 130-row sales export with
+mixed date formats/currency symbols/ragged rows, a 3-sheet financial
+report workbook, 40 nested JSON orders with inconsistent optional fields,
+an 80-line server log) that mix several kinds of mess in the same file
+the way an actual export would — covering workflows like a CI schema
+gate that must reject bad data, a mixed-format batch folder that must
+survive one corrupted file without aborting, and a dry-run-then-apply
+sequence, not just isolated parsing correctness.
+
+This is exactly the kind of testing that finds bugs unit tests miss purely
+by being closer to reality: it caught a real one during development — a
+single-column Excel sheet ("Notes" tab) had every data row misread as
+footer junk and silently dropped, because a legitimate one-column data
+row and a stray trailing note look identical by cell count alone once the
+table only has one column. Fixed in `tidyrs-xlsx`, with both the targeted
+regression test (`single_column_sheet_keeps_all_its_data_rows`) and the
+scenario-level assertion in `financial_report_produces_one_csv_per_sheet_with_correct_row_counts`
+that exposed it in the first place. It also surfaced a real, correct-but-
+easy-to-assume-otherwise behavior difference between `--stream` and the
+in-memory path — see [Performance notes](#performance-notes).
+
+```sh
+cargo test -p tidyrs-cli --test real_world_scenarios
+
+# regenerate the fixtures (deterministic — same seed, same output)
+cargo run -p tidyrs-cli --example gen_real_world_fixtures
+```
 
 ## Building & testing
 

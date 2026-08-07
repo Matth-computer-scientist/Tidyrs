@@ -138,18 +138,38 @@ fn process_sheet(sheet_name: &str, mut rows: Vec<Vec<Data>>, strategy: MergeStra
         }
     }
 
-    let header_idx = rows.iter().position(|r| non_empty_count(r) >= 2).unwrap_or(0);
+    // A genuinely single-column sheet (a "Notes" tab, a plain list) has
+    // at most 1 populated cell in *every* row, including its real data —
+    // the ">= 2 populated cells" signal used below to spot a header and
+    // trim a footer only makes sense when the sheet has more than one
+    // column to begin with. Without this check, a legitimate one-column
+    // table used to have its header detection silently fall through
+    // (`position` finds nothing, defaults to row 0 — right by luck, not
+    // ​design) and then lose every single data row to the footer trim,
+    // since a normal data row and a stray footer note are
+    // indistinguishable by cell count alone when there's only ever one
+    // cell to count.
+    let max_populated = rows.iter().map(|r| non_empty_count(r)).max().unwrap_or(0);
+    let is_single_column = max_populated <= 1;
+
+    let header_idx = if is_single_column {
+        rows.iter().position(|r| non_empty_count(r) >= 1).unwrap_or(0)
+    } else {
+        rows.iter().position(|r| non_empty_count(r) >= 2).unwrap_or(0)
+    };
     if header_idx > 0 {
         report.info(format!("sheet '{sheet_name}': skipped {header_idx} leading junk row(s) before header"));
     }
 
     let mut end_idx = rows.len();
-    while end_idx > header_idx + 1 {
-        let n = non_empty_count(&rows[end_idx - 1]);
-        if n <= 1 {
-            end_idx -= 1;
-        } else {
-            break;
+    if !is_single_column {
+        while end_idx > header_idx + 1 {
+            let n = non_empty_count(&rows[end_idx - 1]);
+            if n <= 1 {
+                end_idx -= 1;
+            } else {
+                break;
+            }
         }
     }
     let trimmed_footer = rows.len() - end_idx;

@@ -7,6 +7,23 @@ fn fixture(name: &str) -> Vec<u8> {
 }
 
 #[test]
+fn single_column_sheet_keeps_all_its_data_rows() {
+    // Regression: a legitimately single-column sheet used to have every
+    // data row misread as footer junk (each row has exactly 1 populated
+    // cell, the same shape the footer heuristic watches for), leaving
+    // only the header behind.
+    let bytes = fixture("single_column_sheet.xlsx");
+    let parser = XlsxParser::new();
+    let outcome = parser.parse(&bytes, "single_column_sheet.xlsx", &ParseOptions::new()).unwrap();
+    let table = &outcome.tables[0];
+
+    assert_eq!(table.headers, vec!["note"]);
+    assert_eq!(table.rows.len(), 3);
+    assert_eq!(table.rows[0][0], TidyValue::Text("First observation about the dataset.".to_string()));
+    assert_eq!(table.rows[2][0], TidyValue::Text("Third and final note.".to_string()));
+}
+
+#[test]
 fn merged_cells_are_forward_filled_and_junk_rows_trimmed() {
     let bytes = fixture("junk_rows_and_merged_cells.xlsx");
     let parser = XlsxParser::new();

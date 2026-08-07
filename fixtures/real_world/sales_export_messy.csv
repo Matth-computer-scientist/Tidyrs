@@ -1,0 +1,132 @@
+order_id,customer_name,order_date,amount,currency,status,notes
+1001,Silva Ltda,13-07-2025,3756.90,USD,pending,
+1002,Silva Ltda,2025-06-17,4207.62,USD,paid,
+1003,Nakamura Corp,28-10-2025,3438.56,GBP,pending,
+1004,Kowalski sp. z o.o.,01-12-2025,4465.78,USD,paid,
+1005,David Kim,19/11/2025,1229.28,USD,paid,
+1006,Jose Garcia,06-10-2025,1076.83,GBP,paid,gift wrap requested
+1007,Sohngen GmbH,09/09/2025,971.25,GBP,paid
+1008,Kowalski sp. z o.o.,08/09/2025,2406.55,USD,refunded,
+1009,Elena Rossi,04-04-2025,$4822.55,GBP,pending,
+1010,Alice Martin,22/05/2025,4412.93,USD,paid,
+1011,Nakamura Corp,12/10/2025,2421.83,EUR,refunded,VIP customer
+
+1012,Aicha Diallo,22-05-2025,3939.37,EUR,cancelled,
+1013,Jose Garcia,25/05/2025,1085.14,EUR,paid
+1014,Sohngen GmbH,18-10-2025,150.53,USD,paid,
+1015,Silva Ltda,15-11-2025,3861.79,USD,paid,
+1016,Zhang Wei,17/03/2025,4001 81,EUR,paid,
+1017,Sohngen GmbH,2025-06-23,3076.12,EUR,cancelled,
+1018,Zhang Wei,12-11-2025,3372.48,EUR,paid,,EXTRA
+1019,O'Brien & Sons,27-09-2025,1750.46,EUR,pending,
+1020,Charlotte Dubois,05/03/2025,748.76,USD,paid
+1021,Francois Petit,13/10/2025,2709 22,USD,paid,
+1022,Kowalski sp. z o.o.,2025-02-01,1638.46,GBP,cancelled,
+1023,Sohngen GmbH,2025-01-23,2976.49,GBP,cancelled,
+1024,Jose Garcia,08/06/2025,1228 13,USD,paid,VIP customer
+1025,Zhang Wei,21/04/2025,4182.61,GBP,cancelled,
+1026,Zhang Wei,01/01/2025,2729.48,GBP,pending,
+1027,Silva Ltda,04-07-2025,922.00,GBP,cancelled,
+1028,Aicha Diallo,2025-10-23,3821.15,USD,cancelled,partial refund issued
+1029,Bob Nguyen,13-01-2025,2141.03,GBP,refunded,
+1030,Kowalski sp. z o.o.,02-04-2025,874.81,EUR,refunded,
+1031,Zhang Wei,2025-05-16,530.12,GBP,paid,
+1032,Silva Ltda,2025-03-26,4271.85,GBP,pending,
+1033,Kowalski sp. z o.o.,2025-06-13,1988.93,EUR,cancelled,
+1034,Aicha Diallo,2025-07-26,4382.13,GBP,pending,gift wrap requested,EXTRA
+1035,Alice Martin,2025-03-27,2095.35,EUR,refunded,
+1036,Alice Martin,17-04-2025,2221.43,USD,paid,
+1037,Charlotte Dubois,03-10-2025,1690.68,GBP,paid,
+1038,Alice Martin,12/05/2025,2870.18,EUR,paid,
+1039,Nakamura Corp,2025-05-05,853.35,USD,paid,,EXTRA
+1040,Nakamura Corp,2025-04-28,3725.32,GBP,paid,
+1041,Alice Martin,07/07/2025,2582.42,USD,paid,
+1042,Alice Martin,02/03/2025,925.61,EUR,paid,
+1043,Jose Garcia,2025-03-13,4600.87,USD,cancelled,
+1044,Silva Ltda,22/12/2025,443.59,USD,paid,
+1045,Bob Nguyen,20-06-2025,3848.70,EUR,paid,
+1046,Francois Petit,12-03-2025,4415.38,EUR,paid,
+1047,Francois Petit,27/08/2025,371.05,USD,paid,
+1048,Nakamura Corp,24/07/2025,3228.62,GBP,pending,VIP customer
+1049,Kowalski sp. z o.o.,28-05-2025,2828.30,EUR,cancelled,
+1050,Elena Rossi,2025-11-22,4395.67,EUR,cancelled,
+1051,Francois Petit,2025-05-14,$4012.60,USD,refunded,address changed mid-transit
+1052,Sohngen GmbH,14-07-2025,2852.92,EUR,paid,
+1053,Nakamura Corp,12-07-2025,1656.25,GBP,paid,
+1054,O'Brien & Sons,17-09-2025,$1566.02,GBP,paid,
+1055,David Kim,02-09-2025,1354.57,GBP,cancelled,
+1056,Elena Rossi,2025-03-12,835.77,EUR,refunded,
+1057,O'Brien & Sons,18/12/2025,3905.02,GBP,refunded,
+1058,Jose Garcia,09-02-2025,579.54,GBP,pending,partial refund issued
+1059,Kowalski sp. z o.o.,02-01-2025,2151.66,EUR,pending
+1060,Silva Ltda,02-03-2025,4274.09,EUR,pending,
+1061,David Kim,03-03-2025,3232 46,EUR,refunded,
+1062,Nakamura Corp,16-01-2025,3797.38,USD,paid,VIP customer
+1063,Kowalski sp. z o.o.,03/05/2025,4898.08,GBP,refunded,
+1064,Kowalski sp. z o.o.,10-03-2025,$3235.45,GBP,refunded,
+1065,Bob Nguyen,2025-03-06,$2633.06,GBP,paid,
+1066,Jose Garcia,2025-11-27,4525.25,USD,pending,
+1067,Jose Garcia,01-08-2025,4333.25,GBP,paid
+1068,Nakamura Corp,10-08-2025,3154.33,USD,cancelled,
+1069,Zhang Wei,2025-04-13,2032 56,EUR,paid,partial refund issued
+1070,Muller AG,2025-09-24,1564.17,USD,cancelled,
+1071,Jose Garcia,2025-02-20,4789.34,GBP,paid,
+1072,Silva Ltda,2025-05-02,398.40,EUR,paid,
+1073,Sohngen GmbH,28-10-2025,4851.44,EUR,pending,
+1074,O'Brien & Sons,19-08-2025,2370.31,EUR,paid,
+1075,David Kim,2025-09-22,870.31,EUR,refunded,
+1076,Zhang Wei,15-02-2025,1394.74,USD,paid,
+1077,Kowalski sp. z o.o.,16/09/2025,374.02,EUR,refunded,
+1078,Nakamura Corp,16-10-2025,3470.57,GBP,cancelled,
+1079,Charlotte Dubois,2025-12-07,4869.14,EUR,pending,
+1080,Alice Martin,27/10/2025,$4419.01,EUR,refunded,
+1081,Bob Nguyen,19/01/2025,1353.51,GBP,pending,
+1082,David Kim,25/12/2025,82.43,GBP,pending,
+1083,Alice Martin,16-03-2025,4237.07,GBP,paid
+1084,Francois Petit,16-07-2025,827.24,USD,paid,
+1085,Muller AG,2025-09-12,1271.73,GBP,pending,
+1086,O'Brien & Sons,24-06-2025,$1920.74,EUR,paid,
+1087,Zhang Wei,19-01-2025,1580.98,USD,paid,
+1088,Nakamura Corp,10-12-2025,3141.19,USD,paid,address changed mid-transit
+1089,David Kim,08/10/2025,4141.42,EUR,paid,
+1090,Nakamura Corp,03/08/2025,2999.67,USD,pending,
+1091,Francois Petit,06-07-2025,2448.15,USD,cancelled,
+1092,Elena Rossi,09/06/2025,296.95,EUR,paid,
+1093,Aicha Diallo,2025-07-20,4411 36,EUR,paid,
+1094,O'Brien & Sons,24/10/2025,2008 32,USD,refunded,
+1095,Jose Garcia,03/07/2025,1842.99,USD,paid,
+1096,Aicha Diallo,28-08-2025,1083.47,GBP,refunded,
+1097,Francois Petit,2025-10-07,4084.23,GBP,pending,
+1098,Zhang Wei,2025-11-14,919.03,USD,paid,partial refund issued
+1099,Francois Petit,08/01/2025,1872.93,USD,pending,
+1100,Aicha Diallo,26/11/2025,3163.43,GBP,pending
+1101,Francois Petit,05-03-2025,2131.80,GBP,paid,
+1102,Alice Martin,21/06/2025,2138.18,EUR,cancelled,
+1103,Jose Garcia,19/04/2025,3496.33,EUR,cancelled,
+1104,Nakamura Corp,03/02/2025,3575.82,EUR,pending,
+1105,O'Brien & Sons,2025-07-12,34.74,GBP,paid,
+1106,Aicha Diallo,2025-03-13,3116 59,USD,paid,
+1107,Charlotte Dubois,28-11-2025,219.97,EUR,cancelled,
+1108,Jose Garcia,2025-10-13,1990.98,GBP,refunded,flagged for review
+1109,David Kim,07-07-2025,21.94,USD,paid,
+1110,David Kim,23-05-2025,3174.19,USD,pending,
+1111,Muller AG,17-03-2025,4172.55,USD,pending,
+1112,Muller AG,2025-05-11,$1985.47,GBP,paid,
+1113,Zhang Wei,14-10-2025,703.30,EUR,pending,
+1114,Silva Ltda,04-03-2025,$872.57,USD,refunded,
+1115,Aicha Diallo,05-05-2025,3613.69,GBP,paid,partial refund issued
+1116,Aicha Diallo,2025-08-11,3708.31,GBP,refunded,
+1117,David Kim,2025-07-01,3556.42,EUR,cancelled,
+1118,Silva Ltda,17-12-2025,2295.36,USD,pending,
+1119,Zhang Wei,06/06/2025,3920.58,EUR,cancelled,
+1120,Silva Ltda,2025-08-25,88.85,USD,paid,
+1121,Kowalski sp. z o.o.,2025-02-16,3516.17,USD,refunded,
+1122,Zhang Wei,26-08-2025,979.44,GBP,paid,
+1123,Muller AG,24-12-2025,958.07,EUR,cancelled,,EXTRA
+1124,O'Brien & Sons,2025-11-18,3679.04,EUR,paid,
+1125,David Kim,20/02/2025,2772.87,EUR,pending,
+1126,Sohngen GmbH,23/06/2025,4719.41,EUR,refunded,
+1127,David Kim,2025-02-04,2896.87,GBP,pending,
+1128,Sohngen GmbH,2025-06-09,3674.81,EUR,refunded,
+1129,Aicha Diallo,2025-04-07,3427.68,USD,cancelled,
+1130,Francois Petit,17-06-2025,1184.96,USD,paid,

@@ -28,6 +28,17 @@
 //!   per-column type ([`tidyrs_core::export::write_parquet_file`]) — both
 //!   are architecturally incompatible with a single forward pass, so
 //!   there's no streaming equivalent for them.
+//! - **Number formatting**: streaming writes every field's original text
+//!   straight through, unchanged — it never parses a cell into
+//!   `TidyValue::Int`/`Float` and re-serializes it the way the in-memory
+//!   path does. On real (not uniformly-formatted) data this is visible:
+//!   an amount written as `"3756.90"` in the source file stays exactly
+//!   `"3756.90"` when streamed, but comes out as `"3756.9"` from the
+//!   in-memory path (parsed as an `f64`, trailing zero dropped by
+//!   `Display`). Confirmed with a realistic mixed-formatting fixture in
+//!   `tidyrs-cli/tests/real_world_scenarios.rs` — don't assume the two
+//!   paths are byte-for-byte interchangeable on a column whose source
+//!   values don't already share one consistent decimal-place format.
 
 use crate::{decode_bytes, detect_delimiter};
 use std::io::{Read, Write};

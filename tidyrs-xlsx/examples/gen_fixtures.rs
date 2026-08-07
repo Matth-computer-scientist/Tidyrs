@@ -93,6 +93,21 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         wb.save(out_dir.join("two_merges_with_gap_between.xlsx"))?;
     }
 
+    // 5. A genuinely single-column sheet (e.g. a "Notes" tab). Every row,
+    // including real data, has at most 1 populated cell — the same shape
+    // the footer-junk heuristic uses to spot a stray trailing note, so
+    // without a width-aware guard this used to strip every data row down
+    // to nothing, keeping only the header.
+    {
+        let mut wb = Workbook::new();
+        let ws = wb.add_worksheet();
+        ws.write_string(0, 0, "note")?;
+        ws.write_string(1, 0, "First observation about the dataset.")?;
+        ws.write_string(2, 0, "Second observation, unrelated to the first.")?;
+        ws.write_string(3, 0, "Third and final note.")?;
+        wb.save(out_dir.join("single_column_sheet.xlsx"))?;
+    }
+
     println!("wrote fixtures to {}", out_dir.display());
     Ok(())
 }
