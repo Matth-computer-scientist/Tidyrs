@@ -77,7 +77,7 @@ fn count_delimiter_outside_quotes(line: &str, delim: u8) -> usize {
 /// comma / semicolon / tab / pipe. Falls back to comma if the file is too
 /// short/uniform to tell.
 pub(crate) fn detect_delimiter(text: &str) -> u8 {
-    let sample: Vec<&str> = text.lines().filter(|l| !l.trim().is_empty()).take(30).collect();
+    let sample = tidyrs_core::representative_lines(text, 30);
     if sample.is_empty() {
         return b',';
     }
@@ -119,7 +119,8 @@ impl TidyParser for CsvParser {
                 score += 0.5;
             }
         }
-        let (text, _) = decode_bytes(&bytes[..bytes.len().min(4096)]);
+        let sample = tidyrs_core::sample_for_sniffing(bytes);
+        let (text, _) = decode_bytes(&sample);
 
         // Random/binary content still decodes to *something* under a
         // guessed encoding (chardetng always picks one), often full of
@@ -137,11 +138,27 @@ impl TidyParser for CsvParser {
         }
 
         let delim = detect_delimiter(&text);
-        let lines: Vec<&str> = text.lines().filter(|l| !l.trim().is_empty()).take(10).collect();
+        let lines = tidyrs_core::representative_lines(&text, 10);
         if lines.len() >= 2 {
             let counts: Vec<usize> = lines.iter().map(|l| count_delimiter_outside_quotes(l, delim)).collect();
-            if counts.iter().all(|&c| c == counts[0]) && counts[0] > 0 {
-                score += 0.4;
+            // Requiring *exact* equality across every sampled line used to
+            // gate this entirely on perfectly uniform column counts — which
+            // directly contradicts the whole point of this parser being
+            // tolerant of ragged rows: a genuinely messy CSV (missing
+            // trailing fields, a stray extra column here and there) would
+            // score 0 here purely from content, with no filename hint to
+            // fall back on. Score gradually instead: full credit for the
+            // delimiter being present in every sampled line at a broadly
+            // consistent count, partial credit for "present in most lines,
+            // roughly consistent," so a few ragged rows don't zero out an
+            // otherwise obvious CSV.
+            let present = counts.iter().filter(|&&c| c > 0).count() as f32;
+            let presence_ratio = present / counts.len() as f32;
+            if presence_ratio > 0.3 {
+                let mean = counts.iter().sum::<usize>() as f32 / counts.len() as f32;
+                let variance = counts.iter().map(|&c| (c as f32 - mean).powi(2)).sum::<f32>() / counts.len() as f32;
+                let consistency = (1.0 - variance / (mean * mean + 1.0)).clamp(0.0, 1.0);
+                score += 0.4 * presence_ratio * (0.5 + 0.5 * consistency);
             }
         }
         score.min(1.0)

@@ -531,6 +531,38 @@ cargo test -p tidyrs-cli --test real_world_scenarios
 cargo run -p tidyrs-cli --example gen_real_world_fixtures
 ```
 
+### Detection accuracy
+
+`tidyrs-cli/tests/detection_accuracy.rs` runs `FormatRegistry::detect`
+against every fixture committed to the repo (content-only, no filename
+hint) and asserts each one is classified as the format it actually is —
+the concrete bar a change to a `sniff()` scoring formula has to clear,
+instead of "feels more principled." Running it against the real-world
+fixtures caught two real detection bugs:
+
+- CSV delimiter-consistency scoring required the *exact same* delimiter
+  count on every sampled line to score above zero content-only — which
+  directly contradicted this parser's own headline feature (tolerating
+  ragged rows): a genuinely messy CSV with a couple of short/long rows
+  could fail to be detected as CSV at all once there was no filename
+  extension to fall back on. Scoring is now graduated (partial credit for
+  "present in most lines, roughly consistent") instead of all-or-nothing.
+- Both `sniff()` implementations only ever read the first 4096 bytes of
+  the file — invisible to a table that starts later (a real export can
+  have a preamble/comment block first). Detection now samples the start,
+  middle, and end of larger files (`tidyrs_core::sample_for_sniffing`),
+  and the delimiter/alignment checks themselves sample lines from both
+  ends of that text, not just its head (`tidyrs_core::representative_lines`).
+  Fixing this also exposed that `tidyrs-fixed`'s "multiple whitespace-
+  separated tokens" signal alone was too weak — it matches ordinary prose
+  sentences just as readily as real tabular data — so it now also
+  requires the token count to be *consistent* line to line, which prose
+  isn't and real tabular/log data is.
+
+```sh
+cargo test -p tidyrs-cli --test detection_accuracy
+```
+
 ## Building & testing
 
 ```sh

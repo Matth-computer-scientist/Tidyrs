@@ -97,7 +97,8 @@ impl TidyParser for FixedWidthParser {
                 score += 0.2;
             }
         }
-        let text = String::from_utf8_lossy(&bytes[..bytes.len().min(4096)]);
+        let sample = tidyrs_core::sample_for_sniffing(bytes);
+        let text = String::from_utf8_lossy(&sample);
 
         // Random/binary content decoded via from_utf8_lossy is riddled with
         // U+FFFD replacement characters and control bytes that happen to
@@ -119,7 +120,7 @@ impl TidyParser for FixedWidthParser {
             return 0.0;
         }
 
-        let lines: Vec<&str> = text.lines().filter(|l| !l.trim().is_empty()).take(20).collect();
+        let lines = tidyrs_core::representative_lines(&text, 20);
         if lines.len() < 2 {
             return score;
         }
@@ -131,10 +132,25 @@ impl TidyParser for FixedWidthParser {
         if !has_delim {
             score += 0.3;
         }
-        // Multiple whitespace-separated tokens on most lines.
-        let multi_token = lines.iter().filter(|l| l.split_whitespace().count() >= 2).count();
+        // "At least 2 whitespace-separated tokens" alone is a very weak
+        // signal — it matches essentially any English sentence just as
+        // readily as it matches real tabular/log data, which used to let
+        // ordinary prose (e.g. a comment/preamble block ahead of an
+        // actual CSV table further into the file) outscore the format
+        // that file actually is. Real tabular or log data additionally
+        // has a *stable* field count line to line (a log's timestamp +
+        // level + message shape repeats; a fixed-width table's column
+        // count is constant) — prose does not, word count varies freely
+        // sentence to sentence. Require both.
+        let token_counts: Vec<usize> = lines.iter().map(|l| l.split_whitespace().count()).collect();
+        let multi_token = token_counts.iter().filter(|&&c| c >= 2).count();
         if multi_token as f32 / lines.len() as f32 > 0.7 {
-            score += 0.2;
+            let mean = token_counts.iter().sum::<usize>() as f32 / token_counts.len() as f32;
+            let variance = token_counts.iter().map(|&c| (c as f32 - mean).powi(2)).sum::<f32>() / token_counts.len() as f32;
+            let coefficient_of_variation = variance.sqrt() / mean.max(1.0);
+            if coefficient_of_variation < 0.5 {
+                score += 0.2;
+            }
         }
         score.min(0.6) // stay below CSV/xlsx confidence when genuinely ambiguous
     }
