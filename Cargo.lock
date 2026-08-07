@@ -1917,6 +1917,7 @@ dependencies = [
  "tidyrs-core",
  "tidyrs-csv",
  "tidyrs-fixed",
+ "tidyrs-ini",
  "tidyrs-json",
  "tidyrs-pdf",
  "tidyrs-xlsx",
@@ -1952,6 +1953,14 @@ dependencies = [
 
 [[package]]
 name = "tidyrs-fixed"
+version = "0.1.0"
+dependencies = [
+ "proptest",
+ "tidyrs-core",
+]
+
+[[package]]
+name = "tidyrs-ini"
 version = "0.1.0"
 dependencies = [
  "proptest",

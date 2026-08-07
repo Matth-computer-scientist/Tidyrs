@@ -18,6 +18,7 @@ fn build_registry() -> FormatRegistry {
     reg.register(Box::new(tidyrs_json::JsonXmlParser::new()));
     reg.register(Box::new(tidyrs_fixed::FixedWidthParser::new()));
     reg.register(Box::new(tidyrs_pdf::PdfParser::new()));
+    reg.register(Box::new(tidyrs_ini::IniParser::new()));
     reg
 }
 
@@ -45,6 +46,9 @@ const CASES: &[(&str, &str)] = &[
     ("yaml/single_object.yaml", "json"),
     ("yaml/wrapped_items.yaml", "json"),
     ("yaml/inconsistent_types.yaml", "json"),
+    ("ini/database.ini", "ini"),
+    ("ini/simple.ini", "ini"),
+    ("env/app.env", "ini"), // IniParser handles both .ini and .env
     ("pdf/product_table.pdf", "pdf"),
     ("pdf/proportional_font_per_field_table.pdf", "pdf"),
     ("pdf/simple_table.pdf", "pdf"),
@@ -200,5 +204,43 @@ fn a_genuine_yaml_mapping_is_detected_from_content_alone_over_csv_and_fixed() {
             d.confidence
         ),
         None => panic!("expected a genuine YAML mapping to be detected from content alone"),
+    }
+}
+
+#[test]
+fn a_genuine_multi_section_ini_is_detected_from_content_alone() {
+    let bytes = b"[default]\nhost=localhost\nport=5432\n\n[production]\nhost=db.example.com\nport=5432\n";
+    let registry = build_registry();
+    let detection = registry.detect(bytes, None);
+    match detection {
+        Some(d) => assert_eq!(
+            d.parser.format_name(),
+            "ini",
+            "expected ini, got '{}' (confidence {:.2})",
+            d.parser.format_name(),
+            d.confidence
+        ),
+        None => panic!("expected a genuine multi-section INI file to be detected from content alone"),
+    }
+}
+
+#[test]
+fn a_url_with_query_parameters_is_not_misdetected_as_ini() {
+    // A raw `key=value` scan alone would treat every `&`-joined query
+    // parameter as another INI key=value line. IniParser's is_kv_line
+    // rejects this because the "key" preceding `=` (e.g. the whole path)
+    // contains characters (`/`, `?`) a real config key never would.
+    let bytes = b"GET /search?q=rust&page=2&sort=recent HTTP/1.1\n\
+Host: example.com\n\
+User-Agent: curl/8.0\n";
+    let registry = build_registry();
+    let detection = registry.detect(bytes, None);
+    if let Some(d) = detection {
+        assert_ne!(
+            d.parser.format_name(),
+            "ini",
+            "an HTTP request dump should not be misdetected as INI, got confidence {:.2}",
+            d.confidence
+        );
     }
 }

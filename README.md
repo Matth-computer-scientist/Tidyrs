@@ -76,9 +76,9 @@ drive.
 
 ## Key features
 
-- **One CLI, six input formats** — CSV, Excel, JSON/XML/YAML, fixed-width/log
-  text, and (experimentally) PDF tables, auto-detected from file
-  *content*, not just extension.
+- **One CLI, seven input formats** — CSV, Excel, JSON/XML/YAML, INI/.env,
+  fixed-width/log text, and (experimentally) PDF tables, auto-detected
+  from file *content*, not just extension.
 - **Auditable, not a black box** — every run produces a `CleaningReport`
   listing exactly what was detected and fixed (delimiter, encoding,
   ragged rows, merged cells, ambiguous columns, ...), exportable as JSON.
@@ -111,6 +111,7 @@ drive.
 | CSV | **Stable** | Quote-aware delimiter auto-detection, encoding detection (UTF-8/Latin-1/Windows-1252/...), ragged-row tolerance |
 | Excel (.xlsx/.xls) | **Stable** | Exact merge-region filling for real `.xlsx`/`.xlsm` (forward-fill heuristic fallback for `.xls`/`.xlsb`/`.ods`), junk header/footer row skipping, independent multi-sheet handling |
 | Fixed-width / logs | **Stable** | Whitespace-alignment column inference, or plain whitespace-token splitting for log lines |
+| INI / .env | **Stable** | `[section]` blocks become one row each (a `credentials`-style multi-profile file becomes genuinely tabular data), or one row for a flat file with no sections. Handles `.env`'s `export KEY=VALUE` and quoted values. Content-only detection requires the `[section]`/`key=value` grammar on most sampled lines, not just "the file contains an `=`" |
 | JSON / XML / YAML | **Experimental** | Parsing is solid (YAML is parsed straight into the same value tree as JSON, so it shares one flattening pass); flattening uses a simple, documented dot-notation + array-join strategy (with an opt-in `explode` mode for arrays of objects), not a fully general one. YAML content-only detection uses a `key:`/`- item` line-shape scan plus a real parse-to-mapping/sequence check, since YAML (unlike JSON/XML) has no unique leading character to key off of |
 | PDF (text-based tables) | **Experimental proof of concept** | Reconstructs tables from real glyph positions (works with proportional fonts, not just monospace) with a title-line detector. No OCR — scanned/image PDFs are out of scope. Review output before trusting it |
 
@@ -191,7 +192,7 @@ tidyloom [--log-format text|json] clean [INPUT] [OPTIONS]
 | `-o, --output <FILE>` | — | Output file (single-file mode) |
 | `--output-dir <DIR>` | — | Output directory (batch mode) |
 | `--output-format <csv\|json\|parquet>` | — | Inferred from `--output`'s extension when omitted |
-| `--format <csv\|xlsx\|json\|xml\|fixed\|pdf>` | — | Force a specific parser instead of auto-detecting |
+| `--format <csv\|xlsx\|json\|xml\|fixed\|pdf\|ini>` | — | Force a specific parser instead of auto-detecting |
 | `--report-file <FILE>` | — | Write the full `CleaningReport` as JSON (single-file mode) |
 | `--report-dir <DIR>` | — | Write one JSON report per input file (batch mode) |
 | `--verbose-report` | — | Print every note, not just the one-line summary |
@@ -233,8 +234,8 @@ export::write_csv(&outcome.tables[0], &mut out)?;
 ```
 
 Depend only on the format crates you actually need (`tidyrs-csv`,
-`tidyrs-xlsx`, `tidyrs-json`, `tidyrs-fixed`, `tidyrs-pdf`) plus
-`tidyrs-core` — none of them pull the others in.
+`tidyrs-xlsx`, `tidyrs-json`, `tidyrs-fixed`, `tidyrs-ini`, `tidyrs-pdf`)
+plus `tidyrs-core` — none of them pull the others in.
 
 ## Architecture
 
@@ -246,6 +247,7 @@ tidyrs-core   — TidyParser trait, TidyValue/TidyTable data model,
 tidyrs-csv    — CSV parser (stable) + a separate streaming entry point
 tidyrs-xlsx   — Excel parser (stable)
 tidyrs-fixed  — Fixed-width / whitespace-log parser (stable)
+tidyrs-ini    — INI/.env key-value config parser (stable)
 tidyrs-json   — JSON/XML/YAML parser (experimental)
 tidyrs-pdf    — PDF table extraction (experimental)
 tidyrs-cli    — `tidyloom` binary tying it all together
@@ -572,6 +574,22 @@ accepts almost anything as a one-line string. `detection_accuracy.rs`
 includes a regression case for timestamp-heavy log lines (`09:15:02 INFO
 ...`) specifically because a naive colon scan would otherwise treat the
 first colon in a timestamp as a YAML key separator.
+
+Adding INI/.env support (`tidyrs-ini`) surfaced a real bug in the
+*existing* JSON detection, not just a design question for the new format:
+`detect_kind`'s content-only path treated any leading `[` as proof of
+JSON, with no validation — but an INI `[section]` header starts with `[`
+too. A multi-section `.ini` file with no filename hint used to get
+misclaimed by the JSON parser on sight and then fail outright (JSON's own
+"invalid JSON" parse error), never reaching the parser that could
+actually have handled it, rather than losing gracefully to a lower-scoring
+correct guess. Fixed by requiring an actual successful `serde_json` parse
+before returning a JSON match, the same validate-before-claiming
+discipline already applied to YAML. INI's own content-only detection
+follows the same two-signal shape as YAML's: most sampled lines matching
+the `[section]` / `key=value` grammar, with a conservative definition of
+"key" (identifier-like characters only) that keeps a URL query string or
+an HTTP request dump from being read as config.
 
 ```sh
 cargo test -p tidyrs-cli --test detection_accuracy

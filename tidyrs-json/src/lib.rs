@@ -118,7 +118,14 @@ fn detect_kind(bytes: &[u8], filename: Option<&str>) -> Option<Kind> {
     }
     let text = String::from_utf8_lossy(bytes);
     match text.trim_start().chars().next() {
-        Some('{') | Some('[') => return Some(Kind::Json),
+        // A leading `{`/`[` alone isn't proof of JSON — an INI file's
+        // `[section]` header starts with `[` too, and used to get
+        // misclaimed here on sight, only to then fail to parse at all
+        // (JSON's own parse error, never reaching the parser that could
+        // actually have handled it). Requiring an actual successful parse
+        // is the same validate-before-claiming discipline already used
+        // for YAML below.
+        Some('{') | Some('[') if serde_json::from_str::<Value>(&text).is_ok() => return Some(Kind::Json),
         Some('<') => return Some(Kind::Xml),
         _ => {}
     }

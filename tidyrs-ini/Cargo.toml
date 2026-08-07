@@ -1,0 +1,13 @@
+[package]
+name = "tidyrs-ini"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "INI/.env key-value config parser for tidyloom"
+
+[dependencies]
+tidyrs-core = { workspace = true }
+
+[dev-dependencies]
+proptest = "1"
