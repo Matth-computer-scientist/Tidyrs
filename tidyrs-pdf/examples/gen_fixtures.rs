@@ -137,5 +137,30 @@ fn main() {
         &[15.0, 45.0, 110.0, 145.0, 165.0],
     );
 
+    // Same multi-word title, but over a "clean" table with no ragged/
+    // empty cells — a distinct counter-example from the one above, found
+    // via a follow-up external QA report: the title's own internal word
+    // gaps ("Rapport" / "Ventes" / "-" / "Janvier 2026") can coincidentally
+    // subdivide a region the real table only sees as one wide gap,
+    // producing *more* apparent columns with the title included than
+    // without — the opposite of what the title-skip heuristic assumes.
+    // See the `find_header_offset` docs for why this is accepted as a
+    // known limitation rather than patched: every fix attempted for it
+    // broke other, more common cases (a real header being mistaken for a
+    // title). Kept as a fixture specifically to pin down and prove the
+    // *bounded* nature of the failure — the title survives as extra
+    // ambiguous columns, not silently dropped data.
+    write_columns_n(
+        &out_dir.join("title_with_no_ragged_data.pdf"),
+        "Rapport Ventes - Janvier 2026",
+        &["region", "units", "revenue"],
+        &[
+            vec!["North", "120", "4500.50"],
+            vec!["South", "95", "3120.00"],
+            vec!["East", "210", "8899.99"],
+        ],
+        &[15.0, 60.0, 100.0],
+    );
+
     println!("wrote fixtures to {}", out_dir.display());
 }

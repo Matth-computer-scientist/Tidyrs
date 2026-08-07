@@ -47,6 +47,48 @@ fn title_line_above_ragged_data_does_not_lose_rows_or_the_header() {
 }
 
 #[test]
+fn a_title_the_heuristic_cannot_detect_still_does_not_lose_data() {
+    // Known limitation, not a regression to fix: a multi-word title
+    // ("Rapport Ventes - Janvier 2026") can score *more* inferred columns
+    // when included than the real table scores without it, since the
+    // title's own internal word gaps coincidentally subdivide a region
+    // the table only sees as one wide gap — the opposite of what the
+    // title-skip search assumes. See the extended discussion on
+    // find_header_offset in lib.rs for why this isn't patched further:
+    // every attempted fix broke real headers in other, more common
+    // fixtures. This test exists to pin down that the failure stays
+    // *bounded*: the title survives as extra ambiguous columns, but every
+    // real data row and value must still come through correctly.
+    let bytes = fixture("title_with_no_ragged_data.pdf");
+    let parser = PdfParser::new();
+    let outcome = parser.parse(&bytes, "title_with_no_ragged_data.pdf", &ParseOptions::new()).unwrap();
+    let table = &outcome.tables[0];
+
+    // 4, not 3: the title being merged into the header (the known
+    // limitation this test documents) also means the *real* header row
+    // ("region", "units", "revenue") gets misread as a fourth data row —
+    // a real, visible-on-inspection quality issue, but every actual data
+    // value is still present and correct, which is what matters most for
+    // a pipeline tool: garbled structure is reviewable, silently missing
+    // data is not.
+    assert_eq!(
+        table.rows.len(),
+        4,
+        "all 3 real data rows (plus the misread header row) must survive, got rows: {:?}",
+        table.rows
+    );
+    let all_cells: Vec<String> = table.rows.iter().flatten().map(|v| format!("{v:?}")).collect();
+    let joined = all_cells.join(" ");
+    for expected in ["North", "South", "East", "120", "3120", "8899.99"] {
+        assert!(
+            joined.contains(expected),
+            "expected to find {expected:?} somewhere in the parsed table, got rows: {:?}",
+            table.rows
+        );
+    }
+}
+
+#[test]
 fn simple_aligned_table_is_reconstructed() {
     let bytes = fixture("simple_table.pdf");
     let parser = PdfParser::new();

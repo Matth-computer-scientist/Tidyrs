@@ -546,6 +546,25 @@ as if the paragraph were more table data, since there's no detector for
 where the tabular region ends — the PDF equivalent of the footer-trimming
 `tidyrs-xlsx` already has, which this crate doesn't.
 
+A follow-up QA round independently confirmed the free-text finding above
+(a closer, 2-table-plus-paragraph reproduction of the reported file
+showed the raw glyph extraction reproducing every sentence intact — a
+wrapped word merely lands split across two CSV *cells*, not missing
+characters) and surfaced one more real, precisely diagnosed limitation in
+`find_header_offset`: a multi-word title's own internal word gaps can
+coincidentally subdivide a region the real table only ever sees as one
+wide gap, so a title can score *more* inferred columns when included than
+the table scores without it — the opposite of what the title-skip search
+assumes. A more direct fix (compute the table's columns from every line
+except the first, then ask directly whether that first line's content
+falls inside two or more of them) was prototyped and rejected: it can't
+tell a title apart from a genuine header, whose whole point is to put a
+label in every column, and started misreading real headers as titles
+across several previously-passing fixtures — a clear case of a fix
+causing more harm than the bug it targeted. Left as a known, bounded
+limitation instead (the title survives as extra ambiguous columns, not
+lost data — see `title_with_no_ragged_data.pdf` and its regression test).
+
 ### Real-world scenario tests
 
 Every other test in this repo isolates one specific behavior in a small,

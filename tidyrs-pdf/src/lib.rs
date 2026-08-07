@@ -169,6 +169,27 @@ fn extract_span(line: &str, span: (usize, usize)) -> String {
 /// single-line title is the overwhelming common case, so there's no
 /// realistic upside to letting the search reach past that far enough to
 /// start gaming its own scoring function on real data rows.
+///
+/// A related counter-example (same font, no ragged data this time) was
+/// found in a follow-up report: a multi-word title's own internal word
+/// gaps ("Rapport" / "Ventes" / "-" / "Janvier 2026") can coincidentally
+/// subdivide a region the real table only ever sees as *one* wide gap —
+/// making `skip=0` (title included) score *more* columns than `skip=1`
+/// (title excluded), the opposite of what this search assumes. A more
+/// direct replacement — computing the table's columns from every line
+/// except the first, then asking directly whether that first line's own
+/// content falls inside two or more of them — was prototyped and
+/// rejected: it can't tell a title (unrelated prose landing in several
+/// column positions) apart from a *genuine header* (whose whole point is
+/// to put a label in every column), so it started misreading real
+/// headers as titles across multiple existing, previously-passing
+/// fixtures. Left as a known limitation for the same reason the tied-
+/// count case above is: every fix attempted for it broke a more common
+/// case than the one it fixed. `title_with_no_ragged_data.pdf` pins down
+/// that the failure stays *bounded* even here — the title survives as
+/// extra ambiguous columns, not silently dropped data (see
+/// `a_title_the_heuristic_cannot_detect_still_does_not_lose_data` in
+/// tests/fixtures.rs).
 /// How many leading lines the search below is allowed to try skipping.
 /// Deliberately just 1, not "as many as help the score" — see the
 /// docstring on `find_header_offset` for why letting this search deeper
