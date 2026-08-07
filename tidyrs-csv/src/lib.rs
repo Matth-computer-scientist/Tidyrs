@@ -230,6 +230,20 @@ impl TidyParser for CsvParser {
                 headers.push(format!("column_{}", i + 1));
             }
         }
+        // A source file's own header row can repeat a name (a duplicate
+        // "id" column is a common real-world spreadsheet-to-CSV export
+        // artifact) — left as-is, that produces an ambiguous output
+        // header that downstream tools indexing by name can't
+        // distinguish. Same disambiguation tidyrs-xlsx already applies to
+        // its own header row.
+        let mut seen: std::collections::HashMap<String, usize> = std::collections::HashMap::new();
+        for h in headers.iter_mut() {
+            let count = seen.entry(h.clone()).or_insert(0);
+            *count += 1;
+            if *count > 1 {
+                *h = format!("{h}_{count}");
+            }
+        }
 
         let data_rows = if has_header { &all_rows[1..] } else { &all_rows[..] };
         report.rows_in = data_rows.len();

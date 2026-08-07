@@ -7,6 +7,22 @@ fn fixture(name: &str) -> Vec<u8> {
 }
 
 #[test]
+fn a_repeated_header_name_is_disambiguated_not_left_ambiguous() {
+    // Regression (found via manual QA testing): a source file's own
+    // header row repeating a name (a duplicate "id" column, a real
+    // spreadsheet-to-CSV export artifact) used to be passed straight
+    // through unchanged, leaving two output columns with the exact same
+    // name that anything indexing by column name couldn't tell apart.
+    // tidyrs-xlsx already disambiguates its own header row this way.
+    let bytes = b"id,id,name\n1,2,Bob\n".to_vec();
+    let parser = CsvParser::new();
+    let outcome = parser.parse(&bytes, "dup.csv", &ParseOptions::new()).unwrap();
+    let table = &outcome.tables[0];
+
+    assert_eq!(table.headers, vec!["id", "id_2", "name"]);
+}
+
+#[test]
 fn rows_in_excludes_the_header_row() {
     // Regression: rows_in used to count the header as a data row, so a
     // file with 1 header + 3 data rows reported rows_in=4 while

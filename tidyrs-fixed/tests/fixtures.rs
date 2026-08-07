@@ -7,6 +7,20 @@ fn fixture(name: &str) -> Vec<u8> {
 }
 
 #[test]
+fn a_repeated_whitespace_mode_header_name_is_disambiguated() {
+    // Regression (found via manual QA testing): a source file's own
+    // header line repeating a name used to pass straight through
+    // unchanged. Same fix applied to tidyrs-csv/tidyrs-xlsx/tidyrs-pdf.
+    let bytes = b"id id name\n1 2 Bob\n".to_vec();
+    let parser = FixedWidthParser::new();
+    let opts = ParseOptions::new().set("mode", "whitespace").set("has_header", "true");
+    let outcome = parser.parse(&bytes, "dup.txt", &opts).unwrap();
+    let table = &outcome.tables[0];
+
+    assert_eq!(table.headers, vec!["id", "id_2", "name"]);
+}
+
+#[test]
 fn rows_in_excludes_the_header_row() {
     // Regression: rows_in used to count the header as a data row in both
     // the "fixed" and "whitespace" modes.

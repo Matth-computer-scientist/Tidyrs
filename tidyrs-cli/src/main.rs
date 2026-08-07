@@ -78,7 +78,8 @@ enum Commands {
         #[arg(long)]
         batch: Option<PathBuf>,
 
-        /// Output file (single-file mode).
+        /// Output file (single-file mode). Defaults to <INPUT>.clean.csv
+        /// next to the input file when omitted.
         #[arg(long, short = 'o')]
         output: Option<PathBuf>,
 
@@ -119,6 +120,7 @@ enum Commands {
         #[arg(long, conflicts_with = "no_merge_fill")]
         merge_fill: bool,
 
+        /// Excel: disable merged-cell forward-fill.
         #[arg(long, conflicts_with = "merge_fill")]
         no_merge_fill: bool,
 
@@ -647,19 +649,64 @@ fn main() -> Result<()> {
                     if let Some(dir) = &report_dir {
                         std::fs::create_dir_all(dir)?;
                     }
+
+                    // Only top-level files are processed — read_dir doesn't
+                    // recurse. A subdirectory used to be silently skipped
+                    // with zero indication anything was excluded; that's
+                    // surprising for anyone whose "process this folder"
+                    // mental model includes nested files, so it's now
+                    // called out explicitly per skipped subdirectory.
+                    let mut skipped_dirs: Vec<PathBuf> = Vec::new();
+                    let mut files: Vec<PathBuf> = Vec::new();
+                    for entry in std::fs::read_dir(&batch_dir).with_context(|| format!("reading directory {}", batch_dir.display()))? {
+                        let path = entry?.path();
+                        if path.is_file() {
+                            files.push(path);
+                        } else if path.is_dir() {
+                            skipped_dirs.push(path);
+                        }
+                    }
+                    for dir in &skipped_dirs {
+                        tracing::warn!(
+                            dir = %dir.display(),
+                            "[info] {}: subdirectory skipped — --batch only processes files directly inside the given directory, it does not recurse",
+                            dir.display()
+                        );
+                    }
+
+                    // Two input files with the same stem but different
+                    // extensions (data.csv, data.json) used to both
+                    // resolve to the same output path (data.<ext>) and
+                    // silently overwrite each other, with the batch
+                    // summary reporting both as successfully cleaned. Any
+                    // stem seen more than once gets the source file's own
+                    // extension folded in so every output path is unique.
+                    let mut stem_counts: HashMap<String, usize> = HashMap::new();
+                    for path in &files {
+                        let stem = path.file_stem().and_then(|s| s.to_str()).unwrap_or("output").to_string();
+                        *stem_counts.entry(stem).or_insert(0) += 1;
+                    }
+
+                    let ext = opts.output_format.clone().unwrap_or_else(|| "csv".to_string());
                     let mut count = 0usize;
                     let mut failures = 0usize;
-                    for entry in std::fs::read_dir(&batch_dir).with_context(|| format!("reading directory {}", batch_dir.display()))? {
-                        let entry = entry?;
-                        let path = entry.path();
-                        if !path.is_file() {
-                            continue;
-                        }
-                        let stem = path.file_stem().and_then(|s| s.to_str()).unwrap_or("output");
-                        let ext = opts.output_format.clone().unwrap_or_else(|| "csv".to_string());
-                        let out_path = out_dir.join(format!("{stem}.{ext}"));
-                        let report_path = report_dir.as_ref().map(|dir| dir.join(format!("{stem}.report.json")));
-                        match process_file(&registry, &path, &out_path, report_path.as_deref(), &opts) {
+                    for path in &files {
+                        let stem = path.file_stem().and_then(|s| s.to_str()).unwrap_or("output").to_string();
+                        let out_stem = if stem_counts.get(&stem).copied().unwrap_or(0) > 1 {
+                            let src_ext = path.extension().and_then(|e| e.to_str()).unwrap_or("noext");
+                            let safe_ext: String = src_ext.chars().map(|c| if c.is_alphanumeric() { c } else { '_' }).collect();
+                            tracing::warn!(
+                                file = %path.display(),
+                                "[info] {}: another input file shares the stem '{stem}' — disambiguating output as '{stem}_{safe_ext}.{ext}'",
+                                path.display()
+                            );
+                            format!("{stem}_{safe_ext}")
+                        } else {
+                            stem
+                        };
+                        let out_path = out_dir.join(format!("{out_stem}.{ext}"));
+                        let report_path = report_dir.as_ref().map(|dir| dir.join(format!("{out_stem}.report.json")));
+                        match process_file(&registry, path, &out_path, report_path.as_deref(), &opts) {
                             Ok(()) => count += 1,
                             Err(e) => {
                                 failures += 1;

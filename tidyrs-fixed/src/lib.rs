@@ -71,6 +71,22 @@ fn infer_column_spans(lines: &[&str]) -> Vec<(usize, usize)> {
     spans
 }
 
+/// Renames a repeated header name (a real source file's own header line
+/// can contain one, e.g. a duplicate "id" column) to "name_2", "name_3",
+/// ... so every output column stays individually addressable by name.
+/// Same disambiguation tidyrs-xlsx/tidyrs-csv already apply to their own
+/// header rows.
+fn dedupe_headers(headers: &mut [String]) {
+    let mut seen: std::collections::HashMap<String, usize> = std::collections::HashMap::new();
+    for h in headers.iter_mut() {
+        let count = seen.entry(h.clone()).or_insert(0);
+        *count += 1;
+        if *count > 1 {
+            *h = format!("{h}_{count}");
+        }
+    }
+}
+
 fn extract_span(line: &str, span: (usize, usize)) -> String {
     line.chars().skip(span.0).take(span.1 - span.0).collect::<String>().trim().to_string()
 }
@@ -173,11 +189,12 @@ impl TidyParser for FixedWidthParser {
             let field_counts: Vec<usize> = all_lines.iter().map(|l| l.split_whitespace().count()).collect();
             let width = *field_counts.iter().max().unwrap_or(&0);
 
-            let headers: Vec<String> = if has_header {
+            let mut headers: Vec<String> = if has_header {
                 all_lines[0].split_whitespace().map(|s| s.to_string()).collect()
             } else {
                 (0..width).map(|i| format!("field_{}", i + 1)).collect()
             };
+            dedupe_headers(&mut headers);
 
             let data_lines = if has_header { &all_lines[1..] } else { &all_lines[..] };
             report.rows_in = data_lines.len();
@@ -212,11 +229,12 @@ impl TidyParser for FixedWidthParser {
             }
             report.info(format!("inferred {} fixed-width column(s) from whitespace alignment", spans.len()));
 
-            let headers: Vec<String> = if has_header {
+            let mut headers: Vec<String> = if has_header {
                 spans.iter().map(|&s| extract_span(all_lines[0], s)).collect()
             } else {
                 (0..spans.len()).map(|i| format!("field_{}", i + 1)).collect()
             };
+            dedupe_headers(&mut headers);
 
             let data_lines = if has_header { &all_lines[1..] } else { &all_lines[..] };
             report.rows_in = data_lines.len();

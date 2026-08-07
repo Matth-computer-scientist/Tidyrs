@@ -222,11 +222,23 @@ impl TidyParser for PdfParser {
         ));
 
         let headers: Vec<String> = spans.iter().map(|&s| extract_span(table_lines[0], s)).collect();
-        let headers: Vec<String> = headers
+        let mut headers: Vec<String> = headers
             .into_iter()
             .enumerate()
             .map(|(i, h)| if h.is_empty() { format!("column_{}", i + 1) } else { h })
             .collect();
+        // A repeated header text (two columns both literally titled
+        // "Total", for instance) would otherwise produce an ambiguous
+        // output header — same disambiguation every other parser in the
+        // workspace applies to its own header row.
+        let mut seen: std::collections::HashMap<String, usize> = std::collections::HashMap::new();
+        for h in headers.iter_mut() {
+            let count = seen.entry(h.clone()).or_insert(0);
+            *count += 1;
+            if *count > 1 {
+                *h = format!("{h}_{count}");
+            }
+        }
 
         let raw_rows: Vec<Vec<String>> = table_lines[1..]
             .iter()

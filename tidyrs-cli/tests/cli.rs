@@ -379,6 +379,101 @@ fn batch_mode_cleans_every_file_and_reports_are_per_file() {
 }
 
 #[test]
+fn batch_mode_disambiguates_output_files_that_share_a_stem() {
+    // Regression: two input files with the same stem but different
+    // formats (data.csv, data.json) used to both resolve to the same
+    // output path (data.csv) — the second silently overwrote the first,
+    // with the batch summary still reporting both as successfully
+    // cleaned. Found via manual QA testing, not the automated suite.
+    let tmp = tempfile::tempdir().unwrap();
+    let in_dir = tmp.path().join("in");
+    std::fs::create_dir_all(&in_dir).unwrap();
+    std::fs::write(in_dir.join("data.csv"), "id,name\n1,FromCSV\n").unwrap();
+    std::fs::write(in_dir.join("data.json"), r#"[{"id": 2, "name": "FromJSON"}]"#).unwrap();
+    let out_dir = tmp.path().join("clean");
+
+    Command::cargo_bin("tidyloom")
+        .unwrap()
+        .arg("clean")
+        .arg("--batch")
+        .arg(&in_dir)
+        .arg("--output-dir")
+        .arg(&out_dir)
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("batch complete: 2 file(s) cleaned, 0 failure(s)"));
+
+    // Both files must survive as distinct outputs, not one overwriting
+    // the other.
+    let from_csv = std::fs::read_to_string(out_dir.join("data_csv.csv")).unwrap();
+    assert!(from_csv.contains("FromCSV"));
+    let from_json = std::fs::read_to_string(out_dir.join("data_json.csv")).unwrap();
+    assert!(from_json.contains("FromJSON"));
+    // The plain "data.csv" name must not exist at all — a leftover file
+    // there would mean one of the two inputs is still silently winning.
+    assert!(!out_dir.join("data.csv").exists());
+}
+
+#[test]
+fn batch_mode_skips_subdirectories_with_an_explicit_warning() {
+    // Regression: --batch only reads the top level of the given
+    // directory (std::fs::read_dir doesn't recurse) — a file inside a
+    // subdirectory used to be silently excluded with zero indication
+    // anything was skipped. Found via manual QA testing.
+    let tmp = tempfile::tempdir().unwrap();
+    let in_dir = tmp.path().join("in");
+    let sub_dir = in_dir.join("sub");
+    std::fs::create_dir_all(&sub_dir).unwrap();
+    std::fs::write(in_dir.join("top.csv"), "id,name\n1,Alice\n").unwrap();
+    std::fs::write(sub_dir.join("nested.csv"), "id,name\n2,Bob\n").unwrap();
+    let out_dir = tmp.path().join("clean");
+
+    Command::cargo_bin("tidyloom")
+        .unwrap()
+        .arg("clean")
+        .arg("--batch")
+        .arg(&in_dir)
+        .arg("--output-dir")
+        .arg(&out_dir)
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("batch complete: 1 file(s) cleaned, 0 failure(s)"))
+        .stderr(predicate::str::contains("subdirectory skipped"));
+
+    assert!(out_dir.join("top.csv").exists());
+    assert!(!out_dir.join("nested.csv").exists());
+}
+
+#[test]
+fn json_report_severity_is_lowercase() {
+    // Regression: CleaningNote's severity used to serialize as the
+    // PascalCase Rust variant name ("Info"/"Warning") while every other
+    // field in the report is snake_case/lowercase — an inconsistency a
+    // downstream JSON consumer could trip on. Found via manual QA
+    // testing.
+    let tmp = tempfile::tempdir().unwrap();
+    let out = tmp.path().join("out.csv");
+    let report = tmp.path().join("report.json");
+
+    Command::cargo_bin("tidyloom")
+        .unwrap()
+        .arg("clean")
+        .arg(fixture("csv", "semicolon_ragged.csv"))
+        .arg("--output")
+        .arg(&out)
+        .arg("--report-file")
+        .arg(&report)
+        .assert()
+        .success();
+
+    let content = std::fs::read_to_string(&report).unwrap();
+    assert!(
+        !content.contains("\"Info\"") && !content.contains("\"Warning\""),
+        "severity must not be PascalCase: {content}"
+    );
+}
+
+#[test]
 fn forcing_the_wrong_format_fails_with_a_clear_error() {
     let tmp = tempfile::tempdir().unwrap();
     let out = tmp.path().join("out.csv");
