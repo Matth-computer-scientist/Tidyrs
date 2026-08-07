@@ -76,9 +76,9 @@ drive.
 
 ## Key features
 
-- **One CLI, nine input formats** — CSV, Excel, SQLite, JSON/XML/YAML,
-  INI/.env, fixed-width/log text, and (experimentally) ORC and PDF tables,
-  auto-detected from file *content*, not just extension.
+- **One CLI, eleven input formats** — CSV, Excel, SQLite, JSON/XML/YAML,
+  INI/.env, fixed-width/log text, and (experimentally) ORC, Parquet, Avro,
+  and PDF tables, auto-detected from file *content*, not just extension.
 - **Auditable, not a black box** — every run produces a `CleaningReport`
   listing exactly what was detected and fixed (delimiter, encoding,
   ragged rows, merged cells, ambiguous columns, ...), exportable as JSON.
@@ -115,6 +115,8 @@ drive.
 | INI / .env | **Stable** | `[section]` blocks become one row each (a `credentials`-style multi-profile file becomes genuinely tabular data), or one row for a flat file with no sections. Handles `.env`'s `export KEY=VALUE` and quoted values. Content-only detection requires the `[section]`/`key=value` grammar on most sampled lines, not just "the file contains an `=`" |
 | JSON / XML / YAML | **Experimental** | Parsing is solid (YAML is parsed straight into the same value tree as JSON, so it shares one flattening pass); flattening uses a simple, documented dot-notation + array-join strategy (with an opt-in `explode` mode for arrays of objects), not a fully general one. YAML content-only detection uses a `key:`/`- item` line-shape scan plus a real parse-to-mapping/sequence check, since YAML (unlike JSON/XML) has no unique leading character to key off of |
 | ORC | **Experimental** | Boolean/integer/float columns get native `TidyValue` types; Date/Timestamp/Decimal and nested Struct/List/Map columns render as Arrow's own display text rather than a fully typed conversion or dot-notation flattening. Detection keys off ORC's fixed magic trailer at the *end* of the file (ORC's footer is written last, unlike every other magic-byte format here). Full type/compression coverage (including Snappy) via `orc-rust`, chosen over the only other ORC crate on crates.io for licensing (that one's non-commercial-only license is incompatible with this project's) and real feature gaps (no floats, no dates, no Snappy) |
+| Parquet (reading) | **Experimental** | Same native-type-where-unambiguous policy as ORC (they share the same Arrow-based conversion approach), pinned to the same Arrow major version tidyloom's own Parquet *writer* already uses. Writing Parquet (`--output-format parquet`) remains fully typed and stable — this only affects reading an *existing* Parquet file as input |
+| Avro | **Experimental** | Reads Object Container Files via the official `apache-avro` crate. Union-wrapped optional fields (Avro's standard `["null", T]` encoding) are transparently unwrapped rather than surfaced as a wrapper; logical date/timestamp types convert to real calendar values. Nested Record/Array/Map and Decimal/Duration fields render as Rust debug text, the same documented simplification ORC/Parquet use for their own rich schemas |
 | PDF (text-based tables) | **Experimental proof of concept** | Reconstructs tables from real glyph positions (works with proportional fonts, not just monospace) with a title-line detector. No OCR — scanned/image PDFs are out of scope. Review output before trusting it |
 
 See [Feasibility notes](#feasibility-notes) for why PDF in particular
@@ -194,7 +196,7 @@ tidyloom [--log-format text|json] clean [INPUT] [OPTIONS]
 | `-o, --output <FILE>` | — | Output file (single-file mode) |
 | `--output-dir <DIR>` | — | Output directory (batch mode) |
 | `--output-format <csv\|json\|parquet>` | — | Inferred from `--output`'s extension when omitted |
-| `--format <csv\|xlsx\|json\|xml\|fixed\|pdf\|ini\|sqlite\|orc>` | — | Force a specific parser instead of auto-detecting |
+| `--format <csv\|xlsx\|json\|xml\|fixed\|pdf\|ini\|sqlite\|orc\|parquet\|avro>` | — | Force a specific parser instead of auto-detecting |
 | `--report-file <FILE>` | — | Write the full `CleaningReport` as JSON (single-file mode) |
 | `--report-dir <DIR>` | — | Write one JSON report per input file (batch mode) |
 | `--verbose-report` | — | Print every note, not just the one-line summary |
@@ -238,8 +240,8 @@ export::write_csv(&outcome.tables[0], &mut out)?;
 
 Depend only on the format crates you actually need (`tidyrs-csv`,
 `tidyrs-xlsx`, `tidyrs-json`, `tidyrs-fixed`, `tidyrs-ini`, `tidyrs-sqlite`,
-`tidyrs-orc`, `tidyrs-pdf`) plus `tidyrs-core` — none of them pull the
-others in.
+`tidyrs-orc`, `tidyrs-parquet`, `tidyrs-avro`, `tidyrs-pdf`) plus
+`tidyrs-core` — none of them pull the others in.
 
 ## Architecture
 
@@ -254,6 +256,8 @@ tidyrs-fixed  — Fixed-width / whitespace-log parser (stable)
 tidyrs-ini    — INI/.env key-value config parser (stable)
 tidyrs-sqlite — SQLite database reader, one table per input table (stable)
 tidyrs-orc    — Apache ORC reader, via orc-rust/Arrow (experimental)
+tidyrs-parquet — Apache Parquet reader, via parquet/Arrow (experimental)
+tidyrs-avro   — Apache Avro reader, via apache-avro (experimental)
 tidyrs-json   — JSON/XML/YAML parser (experimental)
 tidyrs-pdf    — PDF table extraction (experimental)
 tidyrs-cli    — `tidyloom` binary tying it all together
@@ -399,6 +403,10 @@ tidyloom clean app.db --output app.csv --table orders
 
 # ORC: booleans/integers/floats come through typed; dates/decimals/nested columns as text
 tidyloom clean events.orc --output events.csv
+
+# Parquet/Avro: same experimental typing policy as ORC
+tidyloom clean events.parquet --output events.csv
+tidyloom clean events.avro --output events.csv
 
 # Save the full audit trail as JSON for downstream tooling
 tidyloom clean input.csv --output clean.csv --report-file clean.report.json
@@ -633,6 +641,18 @@ covers it), which makes sense once you consider how narrow a
 coincidental "ends in the literal bytes O-R-C" is compared to, say, "ends
 in whitespace" would have been.
 
+Parquet and Avro both went back to a leading-magic-header check like
+SQLite's — no design surprises there, just `"PAR1"` and `"Obj\x01"`
+respectively at the front of the file. The interesting decision for both
+lives in the *parsing* layer rather than detection: both rich, fully-typed
+formats can carry types `TidyValue` has no variant for, and both handle
+it the same documented way ORC does — a native `Bool`/`Int`/`Float`
+where the mapping is unambiguous, readable text (Arrow's own display
+formatting for ORC/Parquet, Rust's `Debug` for Avro's own `Value` enum)
+everywhere else, rather than a partial/lossy native conversion or a
+JSON-style flattening pass that would have to reimplement type-specific
+decimal/date/timestamp logic for each format separately.
+
 ```sh
 cargo test -p tidyrs-cli --test detection_accuracy
 ```
@@ -655,6 +675,8 @@ Some fixtures are generated rather than hand-written (binary formats like
 cargo run -p tidyrs-xlsx --example gen_fixtures_xlsx
 cargo run -p tidyrs-pdf --example gen_fixtures_pdf
 cargo run -p tidyrs-sqlite --example gen_fixtures
+cargo run -p tidyrs-parquet --example gen_fixtures_parquet
+cargo run -p tidyrs-avro --example gen_fixtures_avro
 ```
 
 `fixtures/orc/` is the one exception: no ORC *writer* exists in the Rust

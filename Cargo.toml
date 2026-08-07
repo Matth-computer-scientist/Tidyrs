@@ -10,6 +10,8 @@ members = [
     "tidyrs-ini",
     "tidyrs-sqlite",
     "tidyrs-orc",
+    "tidyrs-parquet",
+    "tidyrs-avro",
     "tidyrs-cli",
 ]
 
@@ -29,6 +31,8 @@ tidyrs-fixed = { path = "tidyrs-fixed" }
 tidyrs-ini = { path = "tidyrs-ini" }
 tidyrs-sqlite = { path = "tidyrs-sqlite" }
 tidyrs-orc = { path = "tidyrs-orc" }
+tidyrs-parquet = { path = "tidyrs-parquet" }
+tidyrs-avro = { path = "tidyrs-avro" }
 
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"

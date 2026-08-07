@@ -1,0 +1,15 @@
+[package]
+name = "tidyrs-avro"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "Apache Avro reader for tidyloom (experimental)"
+
+[dependencies]
+tidyrs-core = { workspace = true }
+apache-avro = { version = "0.21", default-features = false, features = ["snappy"] }
+chrono = { version = "0.4", default-features = false, features = ["std"] }
+
+[dev-dependencies]
+proptest = "1"

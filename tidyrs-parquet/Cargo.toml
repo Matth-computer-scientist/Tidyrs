@@ -1,0 +1,21 @@
+[package]
+name = "tidyrs-parquet"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "Apache Parquet reader for tidyloom (experimental)"
+
+[dependencies]
+tidyrs-core = { workspace = true }
+# Matches the version tidyrs-core's own parquet *export* path already
+# uses, so this crate doesn't introduce a second Arrow major version the
+# way tidyrs-orc's orc-rust (pinned to arrow 58) had to.
+parquet = { version = "53", default-features = false, features = ["arrow", "snap", "zstd"] }
+arrow-array = "53"
+arrow-schema = "53"
+arrow-cast = "53"
+bytes = "1"
+
+[dev-dependencies]
+proptest = "1"

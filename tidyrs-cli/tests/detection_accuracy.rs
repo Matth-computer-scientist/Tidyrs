@@ -21,6 +21,8 @@ fn build_registry() -> FormatRegistry {
     reg.register(Box::new(tidyrs_ini::IniParser::new()));
     reg.register(Box::new(tidyrs_sqlite::SqliteParser::new()));
     reg.register(Box::new(tidyrs_orc::OrcParser::new()));
+    reg.register(Box::new(tidyrs_parquet::ParquetParser::new()));
+    reg.register(Box::new(tidyrs_avro::AvroParser::new()));
     reg
 }
 
@@ -55,6 +57,8 @@ const CASES: &[(&str, &str)] = &[
     ("sqlite/multi_table.db", "sqlite"),
     ("orc/alltypes.snappy.orc", "orc"),
     ("orc/nested_struct.orc", "orc"),
+    ("parquet/users.parquet", "parquet"),
+    ("avro/users.avro", "avro"),
     ("pdf/product_table.pdf", "pdf"),
     ("pdf/proportional_font_per_field_table.pdf", "pdf"),
     ("pdf/simple_table.pdf", "pdf"),
