@@ -76,8 +76,8 @@ drive.
 
 ## Key features
 
-- **One CLI, eight input formats** — CSV, Excel, SQLite, JSON/XML/YAML,
-  INI/.env, fixed-width/log text, and (experimentally) PDF tables,
+- **One CLI, nine input formats** — CSV, Excel, SQLite, JSON/XML/YAML,
+  INI/.env, fixed-width/log text, and (experimentally) ORC and PDF tables,
   auto-detected from file *content*, not just extension.
 - **Auditable, not a black box** — every run produces a `CleaningReport`
   listing exactly what was detected and fixed (delimiter, encoding,
@@ -114,6 +114,7 @@ drive.
 | Fixed-width / logs | **Stable** | Whitespace-alignment column inference, or plain whitespace-token splitting for log lines |
 | INI / .env | **Stable** | `[section]` blocks become one row each (a `credentials`-style multi-profile file becomes genuinely tabular data), or one row for a flat file with no sections. Handles `.env`'s `export KEY=VALUE` and quoted values. Content-only detection requires the `[section]`/`key=value` grammar on most sampled lines, not just "the file contains an `=`" |
 | JSON / XML / YAML | **Experimental** | Parsing is solid (YAML is parsed straight into the same value tree as JSON, so it shares one flattening pass); flattening uses a simple, documented dot-notation + array-join strategy (with an opt-in `explode` mode for arrays of objects), not a fully general one. YAML content-only detection uses a `key:`/`- item` line-shape scan plus a real parse-to-mapping/sequence check, since YAML (unlike JSON/XML) has no unique leading character to key off of |
+| ORC | **Experimental** | Boolean/integer/float columns get native `TidyValue` types; Date/Timestamp/Decimal and nested Struct/List/Map columns render as Arrow's own display text rather than a fully typed conversion or dot-notation flattening. Detection keys off ORC's fixed magic trailer at the *end* of the file (ORC's footer is written last, unlike every other magic-byte format here). Full type/compression coverage (including Snappy) via `orc-rust`, chosen over the only other ORC crate on crates.io for licensing (that one's non-commercial-only license is incompatible with this project's) and real feature gaps (no floats, no dates, no Snappy) |
 | PDF (text-based tables) | **Experimental proof of concept** | Reconstructs tables from real glyph positions (works with proportional fonts, not just monospace) with a title-line detector. No OCR — scanned/image PDFs are out of scope. Review output before trusting it |
 
 See [Feasibility notes](#feasibility-notes) for why PDF in particular
@@ -193,7 +194,7 @@ tidyloom [--log-format text|json] clean [INPUT] [OPTIONS]
 | `-o, --output <FILE>` | — | Output file (single-file mode) |
 | `--output-dir <DIR>` | — | Output directory (batch mode) |
 | `--output-format <csv\|json\|parquet>` | — | Inferred from `--output`'s extension when omitted |
-| `--format <csv\|xlsx\|json\|xml\|fixed\|pdf\|ini\|sqlite>` | — | Force a specific parser instead of auto-detecting |
+| `--format <csv\|xlsx\|json\|xml\|fixed\|pdf\|ini\|sqlite\|orc>` | — | Force a specific parser instead of auto-detecting |
 | `--report-file <FILE>` | — | Write the full `CleaningReport` as JSON (single-file mode) |
 | `--report-dir <DIR>` | — | Write one JSON report per input file (batch mode) |
 | `--verbose-report` | — | Print every note, not just the one-line summary |
@@ -237,7 +238,8 @@ export::write_csv(&outcome.tables[0], &mut out)?;
 
 Depend only on the format crates you actually need (`tidyrs-csv`,
 `tidyrs-xlsx`, `tidyrs-json`, `tidyrs-fixed`, `tidyrs-ini`, `tidyrs-sqlite`,
-`tidyrs-pdf`) plus `tidyrs-core` — none of them pull the others in.
+`tidyrs-orc`, `tidyrs-pdf`) plus `tidyrs-core` — none of them pull the
+others in.
 
 ## Architecture
 
@@ -251,6 +253,7 @@ tidyrs-xlsx   — Excel parser (stable)
 tidyrs-fixed  — Fixed-width / whitespace-log parser (stable)
 tidyrs-ini    — INI/.env key-value config parser (stable)
 tidyrs-sqlite — SQLite database reader, one table per input table (stable)
+tidyrs-orc    — Apache ORC reader, via orc-rust/Arrow (experimental)
 tidyrs-json   — JSON/XML/YAML parser (experimental)
 tidyrs-pdf    — PDF table extraction (experimental)
 tidyrs-cli    — `tidyloom` binary tying it all together
@@ -393,6 +396,9 @@ tidyloom clean report.xlsx --output report.csv --sheet "Q1" --no-merge-fill
 # SQLite: every user table becomes its own output file (app_users.csv, app_orders.csv, ...)
 tidyloom clean app.db --output app.csv
 tidyloom clean app.db --output app.csv --table orders
+
+# ORC: booleans/integers/floats come through typed; dates/decimals/nested columns as text
+tidyloom clean events.orc --output events.csv
 
 # Save the full audit trail as JSON for downstream tooling
 tidyloom clean input.csv --output clean.csv --report-file clean.report.json
@@ -614,6 +620,19 @@ hit with `calamine` (`tidyrs-xlsx`) and `pdf-extract` (`tidyrs-pdf`), and
 is handled the same way: the whole parse is isolated behind
 `catch_unwind`.
 
+ORC (`tidyrs-orc`) is the other magic-byte format, but with a twist
+SQLite doesn't have: its magic ("ORC") sits at the *end* of the file, not
+the start — ORC's footer is only finalized once every column has been
+written, so it can't live up front the way SQLite's or a ZIP-based
+format's does. `sniff()` accordingly scans the file's tail instead of its
+head, tolerating a few bytes of postscript padding after the magic rather
+than requiring an exact final-3-bytes match. No content-only false
+positives against any other fixture in this repo were found in practice
+(`every_committed_fixture_is_detected_correctly_from_content_alone`
+covers it), which makes sense once you consider how narrow a
+coincidental "ends in the literal bytes O-R-C" is compared to, say, "ends
+in whitespace" would have been.
+
 ```sh
 cargo test -p tidyrs-cli --test detection_accuracy
 ```
@@ -637,6 +656,16 @@ cargo run -p tidyrs-xlsx --example gen_fixtures_xlsx
 cargo run -p tidyrs-pdf --example gen_fixtures_pdf
 cargo run -p tidyrs-sqlite --example gen_fixtures
 ```
+
+`fixtures/orc/` is the one exception: no ORC *writer* exists in the Rust
+ecosystem (`orc-rust` is read-only), so those two files are reused
+directly from `orc-rust`'s own Apache-2.0-licensed test suite
+(`tests/basic/data/alltypes.snappy.orc` and `nested_struct.orc` in
+[datafusion-contrib/orc-rust](https://github.com/datafusion-contrib/orc-rust))
+rather than generated — chosen specifically because upstream's own test
+suite already asserts their exact expected values, so this crate's tests
+are checked against an independently-verified source of truth, not just
+"whatever gets produced."
 
 ## Contributing
 

@@ -95,7 +95,7 @@ enum Commands {
         report_dir: Option<PathBuf>,
 
         /// Force a specific parser instead of auto-detecting the format.
-        #[arg(long, value_parser = ["csv", "xlsx", "json", "xml", "fixed", "pdf", "ini", "sqlite"])]
+        #[arg(long, value_parser = ["csv", "xlsx", "json", "xml", "fixed", "pdf", "ini", "sqlite", "orc"])]
         format: Option<String>,
 
         /// Output format: csv, json, or parquet. Inferred from --output's
@@ -191,6 +191,7 @@ fn build_registry() -> FormatRegistry {
     reg.register(Box::new(tidyrs_pdf::PdfParser::new()));
     reg.register(Box::new(tidyrs_ini::IniParser::new()));
     reg.register(Box::new(tidyrs_sqlite::SqliteParser::new()));
+    reg.register(Box::new(tidyrs_orc::OrcParser::new()));
     reg
 }
 

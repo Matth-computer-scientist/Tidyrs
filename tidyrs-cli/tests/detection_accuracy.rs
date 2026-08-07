@@ -20,6 +20,7 @@ fn build_registry() -> FormatRegistry {
     reg.register(Box::new(tidyrs_pdf::PdfParser::new()));
     reg.register(Box::new(tidyrs_ini::IniParser::new()));
     reg.register(Box::new(tidyrs_sqlite::SqliteParser::new()));
+    reg.register(Box::new(tidyrs_orc::OrcParser::new()));
     reg
 }
 
@@ -52,6 +53,8 @@ const CASES: &[(&str, &str)] = &[
     ("env/app.env", "ini"), // IniParser handles both .ini and .env
     ("sqlite/single_table.db", "sqlite"),
     ("sqlite/multi_table.db", "sqlite"),
+    ("orc/alltypes.snappy.orc", "orc"),
+    ("orc/nested_struct.orc", "orc"),
     ("pdf/product_table.pdf", "pdf"),
     ("pdf/proportional_font_per_field_table.pdf", "pdf"),
     ("pdf/simple_table.pdf", "pdf"),

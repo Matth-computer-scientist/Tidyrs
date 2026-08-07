@@ -1,0 +1,22 @@
+[package]
+name = "tidyrs-orc"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "Apache ORC reader for tidyloom (experimental)"
+
+[dependencies]
+tidyrs-core = { workspace = true }
+# orc-rust 0.8 pins arrow = "58.0" internally (a different major version
+# than tidyrs-core's parquet = "53" for export) — arrow-array/arrow-schema
+# here must match orc-rust's own version exactly, since RecordBatch/Array
+# values it yields are only usable through the matching version's types.
+orc-rust = { version = "0.8", default-features = false }
+arrow-array = "58"
+arrow-schema = "58"
+arrow-cast = "58"
+bytes = "1"
+
+[dev-dependencies]
+proptest = "1"
