@@ -76,9 +76,9 @@ drive.
 
 ## Key features
 
-- **One CLI, seven input formats** — CSV, Excel, JSON/XML/YAML, INI/.env,
-  fixed-width/log text, and (experimentally) PDF tables, auto-detected
-  from file *content*, not just extension.
+- **One CLI, eight input formats** — CSV, Excel, SQLite, JSON/XML/YAML,
+  INI/.env, fixed-width/log text, and (experimentally) PDF tables,
+  auto-detected from file *content*, not just extension.
 - **Auditable, not a black box** — every run produces a `CleaningReport`
   listing exactly what was detected and fixed (delimiter, encoding,
   ragged rows, merged cells, ambiguous columns, ...), exportable as JSON.
@@ -110,6 +110,7 @@ drive.
 |---|---|---|
 | CSV | **Stable** | Quote-aware delimiter auto-detection, encoding detection (UTF-8/Latin-1/Windows-1252/...), ragged-row tolerance |
 | Excel (.xlsx/.xls) | **Stable** | Exact merge-region filling for real `.xlsx`/`.xlsm` (forward-fill heuristic fallback for `.xls`/`.xlsb`/`.ods`), junk header/footer row skipping, independent multi-sheet handling |
+| SQLite | **Stable** | One `TidyTable` per user table (`--table` to restrict to one), read with SQLite's own native column types (no re-inference needed, unlike text formats). Detection keys off SQLite's fixed 16-byte file-header magic string — no heuristic scoring involved, unlike every other format here |
 | Fixed-width / logs | **Stable** | Whitespace-alignment column inference, or plain whitespace-token splitting for log lines |
 | INI / .env | **Stable** | `[section]` blocks become one row each (a `credentials`-style multi-profile file becomes genuinely tabular data), or one row for a flat file with no sections. Handles `.env`'s `export KEY=VALUE` and quoted values. Content-only detection requires the `[section]`/`key=value` grammar on most sampled lines, not just "the file contains an `=`" |
 | JSON / XML / YAML | **Experimental** | Parsing is solid (YAML is parsed straight into the same value tree as JSON, so it shares one flattening pass); flattening uses a simple, documented dot-notation + array-join strategy (with an opt-in `explode` mode for arrays of objects), not a fully general one. YAML content-only detection uses a `key:`/`- item` line-shape scan plus a real parse-to-mapping/sequence check, since YAML (unlike JSON/XML) has no unique leading character to key off of |
@@ -192,7 +193,7 @@ tidyloom [--log-format text|json] clean [INPUT] [OPTIONS]
 | `-o, --output <FILE>` | — | Output file (single-file mode) |
 | `--output-dir <DIR>` | — | Output directory (batch mode) |
 | `--output-format <csv\|json\|parquet>` | — | Inferred from `--output`'s extension when omitted |
-| `--format <csv\|xlsx\|json\|xml\|fixed\|pdf\|ini>` | — | Force a specific parser instead of auto-detecting |
+| `--format <csv\|xlsx\|json\|xml\|fixed\|pdf\|ini\|sqlite>` | — | Force a specific parser instead of auto-detecting |
 | `--report-file <FILE>` | — | Write the full `CleaningReport` as JSON (single-file mode) |
 | `--report-dir <DIR>` | — | Write one JSON report per input file (batch mode) |
 | `--verbose-report` | — | Print every note, not just the one-line summary |
@@ -200,6 +201,7 @@ tidyloom [--log-format text|json] clean [INPUT] [OPTIONS]
 | `--has-header` / `--no-header` | CSV, Excel, fixed-width | Whether the first row/line is a header |
 | `--merge-fill` / `--no-merge-fill` | Excel | Fill cells left empty by merged regions (default: on) |
 | `--sheet <NAME>` | Excel | Only process this sheet (default: all sheets) |
+| `--table <NAME>` | SQLite | Only process this table (default: all user tables) |
 | `--mode <fixed\|whitespace>` | fixed-width | Column-alignment inference vs. whitespace-token splitting |
 | `--separator <STR>` | JSON/XML | Separator used when flattening nested keys |
 | `--array-join-sep <STR>` | JSON/XML | Separator used when joining array values into one column |
@@ -234,8 +236,8 @@ export::write_csv(&outcome.tables[0], &mut out)?;
 ```
 
 Depend only on the format crates you actually need (`tidyrs-csv`,
-`tidyrs-xlsx`, `tidyrs-json`, `tidyrs-fixed`, `tidyrs-ini`, `tidyrs-pdf`)
-plus `tidyrs-core` — none of them pull the others in.
+`tidyrs-xlsx`, `tidyrs-json`, `tidyrs-fixed`, `tidyrs-ini`, `tidyrs-sqlite`,
+`tidyrs-pdf`) plus `tidyrs-core` — none of them pull the others in.
 
 ## Architecture
 
@@ -248,6 +250,7 @@ tidyrs-csv    — CSV parser (stable) + a separate streaming entry point
 tidyrs-xlsx   — Excel parser (stable)
 tidyrs-fixed  — Fixed-width / whitespace-log parser (stable)
 tidyrs-ini    — INI/.env key-value config parser (stable)
+tidyrs-sqlite — SQLite database reader, one table per input table (stable)
 tidyrs-json   — JSON/XML/YAML parser (experimental)
 tidyrs-pdf    — PDF table extraction (experimental)
 tidyrs-cli    — `tidyloom` binary tying it all together
@@ -386,6 +389,10 @@ tidyloom clean --batch ./dossier/ --output-dir ./clean/
 
 # Excel: only one sheet, disable merged-cell forward-fill
 tidyloom clean report.xlsx --output report.csv --sheet "Q1" --no-merge-fill
+
+# SQLite: every user table becomes its own output file (app_users.csv, app_orders.csv, ...)
+tidyloom clean app.db --output app.csv
+tidyloom clean app.db --output app.csv --table orders
 
 # Save the full audit trail as JSON for downstream tooling
 tidyloom clean input.csv --output clean.csv --report-file clean.report.json
@@ -591,6 +598,19 @@ the `[section]` / `key=value` grammar, with a conservative definition of
 "key" (identifier-like characters only) that keeps a URL query string or
 an HTTP request dump from being read as config.
 
+SQLite is the one format in this list where detection needed *no*
+scoring design at all: every SQLite file starts with the same fixed
+16-byte magic string (`"SQLite format 3\0"`), so `sniff()` just checks
+for it directly. Adding `tidyrs-sqlite` did surface one more real bug,
+though — not in detection this time, but in the SQLite reader itself:
+`rusqlite`'s `Statement::column_names()` panics outright (rather than
+returning an `Err`) on a non-UTF-8 column name, which a single mutated
+byte in the fuzz suite's corrupted-database case reliably triggered. This
+is the same class of third-party-panics-on-corrupt-input problem already
+hit with `calamine` (`tidyrs-xlsx`) and `pdf-extract` (`tidyrs-pdf`), and
+is handled the same way: the whole parse is isolated behind
+`catch_unwind`.
+
 ```sh
 cargo test -p tidyrs-cli --test detection_accuracy
 ```
@@ -607,11 +627,12 @@ cargo test -p tidyrs-core --features llm
 ```
 
 Some fixtures are generated rather than hand-written (binary formats like
-`.xlsx`/`.pdf`); regenerate them if you change the generator:
+`.xlsx`/`.pdf`/`.db`); regenerate them if you change the generator:
 
 ```sh
 cargo run -p tidyrs-xlsx --example gen_fixtures_xlsx
 cargo run -p tidyrs-pdf --example gen_fixtures_pdf
+cargo run -p tidyrs-sqlite --example gen_fixtures
 ```
 
 ## Contributing

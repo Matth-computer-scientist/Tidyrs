@@ -8,6 +8,7 @@ members = [
     "tidyrs-json",
     "tidyrs-fixed",
     "tidyrs-ini",
+    "tidyrs-sqlite",
     "tidyrs-cli",
 ]
 
@@ -25,6 +26,7 @@ tidyrs-pdf = { path = "tidyrs-pdf" }
 tidyrs-json = { path = "tidyrs-json" }
 tidyrs-fixed = { path = "tidyrs-fixed" }
 tidyrs-ini = { path = "tidyrs-ini" }
+tidyrs-sqlite = { path = "tidyrs-sqlite" }
 
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"

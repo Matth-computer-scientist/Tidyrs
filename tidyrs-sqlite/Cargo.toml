@@ -1,0 +1,15 @@
+[package]
+name = "tidyrs-sqlite"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "SQLite database reader for tidyloom (one table per input table)"
+
+[dependencies]
+tidyrs-core = { workspace = true }
+rusqlite = { version = "0.31", features = ["bundled"] }
+tempfile = "3"
+
+[dev-dependencies]
+proptest = "1"

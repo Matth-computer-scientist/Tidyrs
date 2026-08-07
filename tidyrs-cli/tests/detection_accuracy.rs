@@ -19,6 +19,7 @@ fn build_registry() -> FormatRegistry {
     reg.register(Box::new(tidyrs_fixed::FixedWidthParser::new()));
     reg.register(Box::new(tidyrs_pdf::PdfParser::new()));
     reg.register(Box::new(tidyrs_ini::IniParser::new()));
+    reg.register(Box::new(tidyrs_sqlite::SqliteParser::new()));
     reg
 }
 
@@ -49,6 +50,8 @@ const CASES: &[(&str, &str)] = &[
     ("ini/database.ini", "ini"),
     ("ini/simple.ini", "ini"),
     ("env/app.env", "ini"), // IniParser handles both .ini and .env
+    ("sqlite/single_table.db", "sqlite"),
+    ("sqlite/multi_table.db", "sqlite"),
     ("pdf/product_table.pdf", "pdf"),
     ("pdf/proportional_font_per_field_table.pdf", "pdf"),
     ("pdf/simple_table.pdf", "pdf"),

@@ -18,6 +18,7 @@ tidyrs-pdf = { workspace = true }
 tidyrs-json = { workspace = true }
 tidyrs-fixed = { workspace = true }
 tidyrs-ini = { workspace = true }
+tidyrs-sqlite = { workspace = true }
 clap = { version = "4", features = ["derive"] }
 anyhow = { workspace = true }
 serde = { workspace = true }

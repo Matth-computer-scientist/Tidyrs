@@ -32,6 +32,7 @@ pub struct Defaults {
     pub has_header: Option<bool>,
     pub merge_fill: Option<bool>,
     pub sheet: Option<String>,
+    pub table: Option<String>,
     pub mode: Option<String>,
     pub separator: Option<String>,
     pub array_join_sep: Option<String>,

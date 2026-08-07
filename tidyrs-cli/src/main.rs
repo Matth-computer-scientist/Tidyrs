@@ -95,7 +95,7 @@ enum Commands {
         report_dir: Option<PathBuf>,
 
         /// Force a specific parser instead of auto-detecting the format.
-        #[arg(long, value_parser = ["csv", "xlsx", "json", "xml", "fixed", "pdf", "ini"])]
+        #[arg(long, value_parser = ["csv", "xlsx", "json", "xml", "fixed", "pdf", "ini", "sqlite"])]
         format: Option<String>,
 
         /// Output format: csv, json, or parquet. Inferred from --output's
@@ -125,6 +125,10 @@ enum Commands {
         /// Excel: only process this sheet name (default: all sheets).
         #[arg(long)]
         sheet: Option<String>,
+
+        /// SQLite: only process this table name (default: all user tables).
+        #[arg(long)]
+        table: Option<String>,
 
         /// Fixed-width: "fixed" (infer column alignment) or "whitespace" (split on any whitespace run).
         #[arg(long, value_parser = ["fixed", "whitespace"])]
@@ -186,6 +190,7 @@ fn build_registry() -> FormatRegistry {
     reg.register(Box::new(tidyrs_fixed::FixedWidthParser::new()));
     reg.register(Box::new(tidyrs_pdf::PdfParser::new()));
     reg.register(Box::new(tidyrs_ini::IniParser::new()));
+    reg.register(Box::new(tidyrs_sqlite::SqliteParser::new()));
     reg
 }
 
@@ -198,6 +203,7 @@ struct RunOptions {
     merge_fill: bool,
     no_merge_fill: bool,
     sheet: Option<String>,
+    table: Option<String>,
     mode: Option<String>,
     separator: Option<String>,
     array_join_sep: Option<String>,
@@ -226,6 +232,9 @@ fn parse_options_for(opts: &RunOptions) -> ParseOptions {
     }
     if let Some(s) = &opts.sheet {
         map.insert("sheet".into(), s.clone());
+    }
+    if let Some(t) = &opts.table {
+        map.insert("table".into(), t.clone());
     }
     if let Some(m) = &opts.mode {
         map.insert("mode".into(), m.clone());
@@ -575,6 +584,7 @@ fn main() -> Result<()> {
             merge_fill,
             no_merge_fill,
             sheet,
+            table,
             mode,
             separator,
             array_join_sep,
@@ -609,6 +619,7 @@ fn main() -> Result<()> {
                 merge_fill,
                 no_merge_fill,
                 sheet: config::merge_opt(sheet, d.sheet.clone()),
+                table: config::merge_opt(table, d.table.clone()),
                 mode: config::merge_opt(mode, d.mode.clone()),
                 separator: config::merge_opt(separator, d.separator.clone()),
                 array_join_sep: config::merge_opt(array_join_sep, d.array_join_sep.clone()),
