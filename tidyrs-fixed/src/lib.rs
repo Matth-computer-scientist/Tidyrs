@@ -98,6 +98,27 @@ impl TidyParser for FixedWidthParser {
             }
         }
         let text = String::from_utf8_lossy(&bytes[..bytes.len().min(4096)]);
+
+        // Random/binary content decoded via from_utf8_lossy is riddled with
+        // U+FFFD replacement characters and control bytes that happen to
+        // still contain a handful of real newline (0x0A) bytes purely by
+        // chance — which was enough, on a small sample, to occasionally
+        // pass the line-count and whitespace-alignment checks below and
+        // get misdetected as a legitimate fixed-width file. Reject content
+        // that isn't overwhelmingly printable/whitespace before doing any
+        // of that heuristic work; genuine text files should have ~0% junk.
+        let total_chars = text.chars().count();
+        if total_chars == 0 {
+            return score;
+        }
+        let junk_chars = text
+            .chars()
+            .filter(|&c| c == '\u{FFFD}' || (c.is_control() && c != '\n' && c != '\r' && c != '\t'))
+            .count();
+        if junk_chars as f32 / total_chars as f32 > 0.01 {
+            return 0.0;
+        }
+
         let lines: Vec<&str> = text.lines().filter(|l| !l.trim().is_empty()).take(20).collect();
         if lines.len() < 2 {
             return score;
@@ -128,8 +149,6 @@ impl TidyParser for FixedWidthParser {
                 message: "no non-empty lines found".into(),
             });
         }
-        report.rows_in = all_lines.len();
-
         let mode = options.get_or("mode", "fixed");
         let has_header = options.get_bool("has_header", false);
 
@@ -145,6 +164,7 @@ impl TidyParser for FixedWidthParser {
             };
 
             let data_lines = if has_header { &all_lines[1..] } else { &all_lines[..] };
+            report.rows_in = data_lines.len();
             let mut ragged = 0usize;
             let mut raw_rows: Vec<Vec<String>> = Vec::with_capacity(data_lines.len());
             for line in data_lines {
@@ -183,6 +203,7 @@ impl TidyParser for FixedWidthParser {
             };
 
             let data_lines = if has_header { &all_lines[1..] } else { &all_lines[..] };
+            report.rows_in = data_lines.len();
             let raw_rows: Vec<Vec<String>> = data_lines
                 .iter()
                 .map(|line| spans.iter().map(|&s| extract_span(line, s)).collect())

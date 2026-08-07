@@ -120,6 +120,22 @@ impl TidyParser for CsvParser {
             }
         }
         let (text, _) = decode_bytes(&bytes[..bytes.len().min(4096)]);
+
+        // Random/binary content still decodes to *something* under a
+        // guessed encoding (chardetng always picks one), often full of
+        // control characters — which could coincidentally contain a few
+        // delimiter-like bytes and pass the checks below. Reject content
+        // that isn't overwhelmingly printable/whitespace first; genuine
+        // CSV text should have ~0% control characters.
+        let total_chars = text.chars().count();
+        if total_chars == 0 {
+            return score;
+        }
+        let junk_chars = text.chars().filter(|&c| c.is_control() && c != '\n' && c != '\r' && c != '\t').count();
+        if junk_chars as f32 / total_chars as f32 > 0.01 {
+            return 0.0;
+        }
+
         let delim = detect_delimiter(&text);
         let lines: Vec<&str> = text.lines().filter(|l| !l.trim().is_empty()).take(10).collect();
         if lines.len() >= 2 {
@@ -174,8 +190,6 @@ impl TidyParser for CsvParser {
             });
         }
 
-        report.rows_in = all_rows.len();
-
         let expected_width = all_rows
             .iter()
             .map(|r| r.len())
@@ -201,6 +215,7 @@ impl TidyParser for CsvParser {
         }
 
         let data_rows = if has_header { &all_rows[1..] } else { &all_rows[..] };
+        report.rows_in = data_rows.len();
         let mut malformed = 0usize;
         let mut raw_rows: Vec<Vec<String>> = Vec::with_capacity(data_rows.len());
         for record in data_rows {

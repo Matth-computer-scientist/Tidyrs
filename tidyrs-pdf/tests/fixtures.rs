@@ -24,6 +24,19 @@ fn simple_aligned_table_is_reconstructed() {
 }
 
 #[test]
+fn rows_in_excludes_title_lines_and_the_header_line() {
+    // Regression: rows_in used to count every extracted text line,
+    // including title lines skipped by find_header_offset and the header
+    // line itself, so it never matched rows_out for the same table.
+    let bytes = fixture("simple_table.pdf");
+    let parser = PdfParser::new();
+    let outcome = parser.parse(&bytes, "simple_table.pdf", &ParseOptions::new()).unwrap();
+
+    assert_eq!(outcome.report.rows_in, 3);
+    assert_eq!(outcome.report.rows_out, 3);
+}
+
+#[test]
 fn title_line_above_the_header_is_detected_and_skipped() {
     let bytes = fixture("table_with_title.pdf");
     let parser = PdfParser::new();

@@ -7,6 +7,58 @@ fn fixture(name: &str) -> Vec<u8> {
 }
 
 #[test]
+fn rows_in_excludes_the_header_row() {
+    // Regression: rows_in used to count the header as a data row, so a
+    // file with 1 header + 3 data rows reported rows_in=4 while
+    // rows_out=3 for the exact same rows (none dropped) — internally
+    // inconsistent within a single report, and different from the
+    // --stream path's (correct) count. See tidyrs-csv/src/stream.rs for
+    // the streaming side of this invariant.
+    let bytes = b"name,age\nAlice,30\nBob,41\nCharlotte,25\n".to_vec();
+    let parser = CsvParser::new();
+    let outcome = parser.parse(&bytes, "in.csv", &ParseOptions::new()).unwrap();
+
+    assert_eq!(outcome.report.rows_in, 3);
+    assert_eq!(outcome.report.rows_out, 3);
+    assert_eq!(outcome.report.rows_in, outcome.report.rows_out);
+}
+
+#[test]
+fn in_memory_and_streaming_report_the_same_row_counts() {
+    let bytes = b"name;age;city\nAlice;30;Paris\nBob;;Lyon\nCharlotte;25;Marseille\n".to_vec();
+
+    let parser = CsvParser::new();
+    let in_memory = parser.parse(&bytes, "in.csv", &ParseOptions::new()).unwrap();
+
+    let mut streamed_out = Vec::new();
+    let streamed_report = tidyrs_csv::stream_clean_csv(bytes.as_slice(), &mut streamed_out, "in.csv", &ParseOptions::new()).unwrap();
+
+    assert_eq!(in_memory.report.rows_in, streamed_report.rows_in);
+    assert_eq!(in_memory.report.rows_out, streamed_report.rows_out);
+    assert_eq!(in_memory.report.rows_in, 3);
+    assert_eq!(in_memory.report.rows_out, 3);
+}
+
+#[test]
+fn sniff_rejects_content_that_is_mostly_control_characters() {
+    // Regression: bytes that decode (under a guessed encoding) to mostly
+    // control characters used to occasionally score high enough to be
+    // misdetected as CSV, purely because a stray 0x0A/delimiter-like byte
+    // showed up by chance. Build a deterministic "looks binary" buffer
+    // (repeating low control bytes with a couple of real newlines mixed
+    // in, so it has >=2 non-empty "lines" like real binary garbage would)
+    // rather than relying on true randomness, which would be flaky in CI.
+    let mut junk = vec![0x01u8, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08];
+    junk.extend([b'\n']);
+    junk.extend([0x01u8, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08]);
+    junk.extend([b'\n']);
+    junk.extend(vec![0x01u8; 100]);
+
+    let parser = CsvParser::new();
+    assert_eq!(parser.sniff(&junk, Some("mystery.csv")), 0.0);
+}
+
+#[test]
 fn semicolon_ragged_rows_are_padded_not_dropped() {
     let bytes = fixture("semicolon_ragged.csv");
     let parser = CsvParser::new();

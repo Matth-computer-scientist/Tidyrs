@@ -88,22 +88,41 @@ fn extract_span(line: &str, span: (usize, usize)) -> String {
 /// wide span. We don't have a header/footer detector as principled as
 /// `tidyrs-xlsx`'s (there's no "populated cell count" concept in raw
 /// text), so instead we try dropping 0, 1, 2, ... leading lines and keep
-/// whichever skip count first reaches the maximum number of inferred
+/// whichever skip count *first* reaches the maximum number of inferred
 /// columns — a title line disrupting alignment should make the column
 /// count go up once it's excluded, and further skips are wasted once it
 /// plateaus.
+///
+/// That last part matters and used to be broken: comparing with a plain
+/// running "> best" let the loop keep chasing any *later* skip that also
+/// happened to increase the span count, even by accident — e.g. skipping
+/// the real header line too (on top of the title) can occasionally look
+/// like an "improvement" once column spacing is measured precisely
+/// (real glyph positions rather than character counts), because a
+/// shorter header row's rounding-derived alignment doesn't always land
+/// in exactly the same character cells as the data rows below it. That
+/// swallowed the header itself as if it were more junk. Finding the true
+/// maximum first and keeping the *smallest* skip that reaches it (not
+/// just any skip that ties or exceeds a running value) is what the
+/// docstring already promised and avoids that over-skip.
+///
+/// A tempting further refinement — among skip levels that tie on span
+/// *count*, prefer the one with the smallest total span *width* on the
+/// theory that a title line merges columns into wider spans — was tried
+/// and reverted: it isn't a sound general signal (different row subsets
+/// legitimately produce different span boundaries for reasons unrelated
+/// to junk-line pollution) and caused real regressions, over-skipping
+/// genuine header rows in files that had no title line at all. A file
+/// whose title-excluded and header-excluded span counts happen to tie
+/// exactly (only observed so far with a monospaced font, where character
+/// counting and geometric spacing coincide) can still lose its header to
+/// this heuristic — a known, narrow remaining limitation rather than one
+/// worth another heuristic layer.
 fn find_header_offset(lines: &[&str]) -> usize {
     let max_skip = lines.len().saturating_sub(2).min(3);
-    let mut best_skip = 0;
-    let mut best_span_count = infer_column_spans(lines).len();
-    for skip in 1..=max_skip {
-        let span_count = infer_column_spans(&lines[skip..]).len();
-        if span_count > best_span_count {
-            best_span_count = span_count;
-            best_skip = skip;
-        }
-    }
-    best_skip
+    let span_counts: Vec<usize> = (0..=max_skip).map(|skip| infer_column_spans(&lines[skip..]).len()).collect();
+    let best_span_count = span_counts.iter().copied().max().unwrap_or(0);
+    span_counts.iter().position(|&c| c == best_span_count).unwrap_or(0)
 }
 
 impl TidyParser for PdfParser {
@@ -167,8 +186,6 @@ impl TidyParser for PdfParser {
                 message: "not enough extractable text lines to reconstruct a table".into(),
             });
         }
-        report.rows_in = lines.len();
-
         let header_offset = find_header_offset(&lines);
         if header_offset > 0 {
             report.info(format!(
@@ -200,6 +217,7 @@ impl TidyParser for PdfParser {
             .iter()
             .map(|line| spans.iter().map(|&s| extract_span(line, s)).collect())
             .collect();
+        report.rows_in = raw_rows.len();
         let typed = tidyrs_core::type_columns(&headers, &raw_rows, self.resolver.as_ref());
         for (col, guess, confidence) in &typed.ambiguous_columns {
             report.info(format!(

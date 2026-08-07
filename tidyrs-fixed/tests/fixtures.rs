@@ -7,6 +7,33 @@ fn fixture(name: &str) -> Vec<u8> {
 }
 
 #[test]
+fn rows_in_excludes_the_header_row() {
+    // Regression: rows_in used to count the header as a data row in both
+    // the "fixed" and "whitespace" modes.
+    let bytes = fixture("aligned_columns.txt");
+    let parser = FixedWidthParser::new();
+    let opts = ParseOptions::new().set("has_header", "true");
+    let outcome = parser.parse(&bytes, "aligned_columns.txt", &opts).unwrap();
+
+    assert_eq!(outcome.report.rows_in, 3);
+    assert_eq!(outcome.report.rows_out, 3);
+}
+
+#[test]
+fn sniff_rejects_content_that_is_mostly_control_characters() {
+    // Same class of bug as tidyrs-csv's sniff: a deterministic "looks
+    // binary" buffer must never score high enough to be misdetected.
+    let mut junk = vec![0x01u8, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08];
+    junk.extend([b'\n']);
+    junk.extend([0x01u8, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08]);
+    junk.extend([b'\n']);
+    junk.extend(vec![0x01u8; 100]);
+
+    let parser = FixedWidthParser::new();
+    assert_eq!(parser.sniff(&junk, Some("mystery.txt")), 0.0);
+}
+
+#[test]
 fn aligned_columns_are_inferred_with_header() {
     let bytes = fixture("aligned_columns.txt");
     let parser = FixedWidthParser::new();
