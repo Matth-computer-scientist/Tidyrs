@@ -1,0 +1,13 @@
+meta:
+  generated_at: "2026-07-20"
+items:
+  - sku: A1
+    price: 9.99
+    supplier:
+      name: Acme
+      country: FR
+  - sku: A2
+    price: 14.5
+    supplier:
+      name: Globex
+      country: DE

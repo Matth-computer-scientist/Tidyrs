@@ -76,7 +76,7 @@ drive.
 
 ## Key features
 
-- **One CLI, five input formats** — CSV, Excel, JSON/XML, fixed-width/log
+- **One CLI, six input formats** — CSV, Excel, JSON/XML/YAML, fixed-width/log
   text, and (experimentally) PDF tables, auto-detected from file
   *content*, not just extension.
 - **Auditable, not a black box** — every run produces a `CleaningReport`
@@ -111,7 +111,7 @@ drive.
 | CSV | **Stable** | Quote-aware delimiter auto-detection, encoding detection (UTF-8/Latin-1/Windows-1252/...), ragged-row tolerance |
 | Excel (.xlsx/.xls) | **Stable** | Exact merge-region filling for real `.xlsx`/`.xlsm` (forward-fill heuristic fallback for `.xls`/`.xlsb`/`.ods`), junk header/footer row skipping, independent multi-sheet handling |
 | Fixed-width / logs | **Stable** | Whitespace-alignment column inference, or plain whitespace-token splitting for log lines |
-| JSON / XML | **Experimental** | Parsing is solid; flattening uses a simple, documented dot-notation + array-join strategy (with an opt-in `explode` mode for arrays of objects), not a fully general one |
+| JSON / XML / YAML | **Experimental** | Parsing is solid (YAML is parsed straight into the same value tree as JSON, so it shares one flattening pass); flattening uses a simple, documented dot-notation + array-join strategy (with an opt-in `explode` mode for arrays of objects), not a fully general one. YAML content-only detection uses a `key:`/`- item` line-shape scan plus a real parse-to-mapping/sequence check, since YAML (unlike JSON/XML) has no unique leading character to key off of |
 | PDF (text-based tables) | **Experimental proof of concept** | Reconstructs tables from real glyph positions (works with proportional fonts, not just monospace) with a title-line detector. No OCR — scanned/image PDFs are out of scope. Review output before trusting it |
 
 See [Feasibility notes](#feasibility-notes) for why PDF in particular
@@ -246,7 +246,7 @@ tidyrs-core   — TidyParser trait, TidyValue/TidyTable data model,
 tidyrs-csv    — CSV parser (stable) + a separate streaming entry point
 tidyrs-xlsx   — Excel parser (stable)
 tidyrs-fixed  — Fixed-width / whitespace-log parser (stable)
-tidyrs-json   — JSON/XML parser (experimental)
+tidyrs-json   — JSON/XML/YAML parser (experimental)
 tidyrs-pdf    — PDF table extraction (experimental)
 tidyrs-cli    — `tidyloom` binary tying it all together
 ```
@@ -558,6 +558,20 @@ fixtures caught two real detection bugs:
   sentences just as readily as real tabular data — so it now also
   requires the token count to be *consistent* line to line, which prose
   isn't and real tabular/log data is.
+
+YAML support (added after these fixes) had to be designed around the same
+lesson from the start: unlike JSON (`{`/`[`) or XML (`<`), YAML has no
+unique leading character to key content-only detection off of. Its
+detection instead requires two independent signals to agree — most
+sampled lines matching a `key:` / `- item` shape, *and* the sample
+actually parsing as a YAML mapping or sequence (not a bare scalar string,
+which is what `serde_yaml` happily produces for nearly any text). Either
+signal alone false-positives: the syntax scan alone matches prose
+containing a stray colon (`Note: see below`), and the parse check alone
+accepts almost anything as a one-line string. `detection_accuracy.rs`
+includes a regression case for timestamp-heavy log lines (`09:15:02 INFO
+...`) specifically because a naive colon scan would otherwise treat the
+first colon in a timestamp as a YAML key separator.
 
 ```sh
 cargo test -p tidyrs-cli --test detection_accuracy

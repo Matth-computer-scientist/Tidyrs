@@ -4,12 +4,13 @@ version.workspace = true
 edition.workspace = true
 license.workspace = true
 repository.workspace = true
-description = "JSON/XML parser for tidyloom with configurable flattening (experimental)"
+description = "JSON/XML/YAML parser for tidyloom with configurable flattening (experimental)"
 
 [dependencies]
 tidyrs-core = { workspace = true }
 serde_json = { workspace = true }
 quick-xml = { version = "0.36", features = ["serialize"] }
+serde_yaml = "0.9"
 
 [dev-dependencies]
 proptest = "1"

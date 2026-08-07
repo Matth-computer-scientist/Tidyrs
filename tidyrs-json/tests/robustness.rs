@@ -40,6 +40,28 @@ proptest! {
     }
 
     #[test]
+    fn never_panics_on_arbitrary_bytes_as_yaml(bytes in prop::collection::vec(any::<u8>(), 0..2048)) {
+        let parser = JsonXmlParser::new();
+        let _ = parser.parse(&bytes, "fuzz.yaml", &ParseOptions::new());
+    }
+
+    #[test]
+    fn never_panics_on_mutated_real_yaml(
+        mutations in prop::collection::vec((any::<usize>(), any::<u8>()), 0..64)
+    ) {
+        let mut bytes = b"- id: 1\n  tags: [a, b]\n- id: 2\n  tags:\n    x: y\n".to_vec();
+        for (pos, byte) in mutations {
+            if bytes.is_empty() {
+                break;
+            }
+            let idx = pos % bytes.len();
+            bytes[idx] = byte;
+        }
+        let parser = JsonXmlParser::new();
+        let _ = parser.parse(&bytes, "fuzz.yaml", &ParseOptions::new());
+    }
+
+    #[test]
     fn never_panics_on_deeply_nested_arrays(depth in 0usize..200) {
         let mut s = String::new();
         for _ in 0..depth {

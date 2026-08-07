@@ -1,0 +1,12 @@
+- id: 1
+  name: Alice
+  role: admin
+  active: true
+- id: 2
+  name: Bob
+  role: viewer
+  active: false
+- id: 3
+  name: Charlotte
+  role: editor
+  active: true

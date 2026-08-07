@@ -1,0 +1,13 @@
+- id: 1
+  name: Alice
+  tags: vip
+- id: 2
+  name: Bob
+  tags:
+    - new
+    - trial
+- id: 3
+  name: Carla
+  tags:
+    primary: vip
+    secondary: beta

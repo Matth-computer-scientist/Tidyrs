@@ -109,6 +109,79 @@ fn explode_array_mode_expands_line_items_into_extra_rows() {
 }
 
 #[test]
+fn yaml_list_of_mappings_becomes_one_row_per_entry() {
+    let bytes = fixture("yaml", "list_of_records.yaml");
+    let parser = JsonXmlParser::new();
+    let outcome = parser.parse(&bytes, "list_of_records.yaml", &ParseOptions::new()).unwrap();
+    let table = &outcome.tables[0];
+
+    assert_eq!(table.rows.len(), 3);
+    assert_eq!(col(&table.headers, &table.rows[0], "name"), &TidyValue::Text("Alice".to_string()));
+    assert_eq!(col(&table.headers, &table.rows[0], "id"), &TidyValue::Int(1));
+    assert_eq!(col(&table.headers, &table.rows[0], "active"), &TidyValue::Bool(true));
+    assert_eq!(col(&table.headers, &table.rows[1], "active"), &TidyValue::Bool(false));
+}
+
+#[test]
+fn yaml_single_mapping_document_becomes_one_row() {
+    let bytes = fixture("yaml", "single_object.yaml");
+    let parser = JsonXmlParser::new();
+    let outcome = parser.parse(&bytes, "single_object.yaml", &ParseOptions::new()).unwrap();
+    let table = &outcome.tables[0];
+
+    assert_eq!(table.rows.len(), 1);
+    assert_eq!(col(&table.headers, &table.rows[0], "amount"), &TidyValue::Float(120.5));
+    assert_eq!(col(&table.headers, &table.rows[0], "paid"), &TidyValue::Bool(true));
+}
+
+#[test]
+fn yaml_wrapper_array_under_a_key_is_used_as_the_row_source() {
+    let bytes = fixture("yaml", "wrapped_items.yaml");
+    let parser = JsonXmlParser::new();
+    let outcome = parser.parse(&bytes, "wrapped_items.yaml", &ParseOptions::new()).unwrap();
+    let table = &outcome.tables[0];
+
+    assert_eq!(table.rows.len(), 2);
+    assert!(table.headers.contains(&"supplier.name".to_string()));
+    assert_eq!(col(&table.headers, &table.rows[0], "sku"), &TidyValue::Text("A1".to_string()));
+    assert_eq!(
+        col(&table.headers, &table.rows[1], "supplier.country"),
+        &TidyValue::Text("DE".to_string())
+    );
+}
+
+#[test]
+fn yaml_key_that_is_sometimes_scalar_list_or_mapping_does_not_crash_parsing() {
+    let bytes = fixture("yaml", "inconsistent_types.yaml");
+    let parser = JsonXmlParser::new();
+    let outcome = parser.parse(&bytes, "inconsistent_types.yaml", &ParseOptions::new()).unwrap();
+    let table = &outcome.tables[0];
+
+    assert_eq!(table.rows.len(), 3);
+    assert_eq!(col(&table.headers, &table.rows[0], "tags"), &TidyValue::Text("vip".to_string()));
+    assert_eq!(col(&table.headers, &table.rows[1], "tags"), &TidyValue::Text("new; trial".to_string()));
+    assert_eq!(col(&table.headers, &table.rows[2], "tags.primary"), &TidyValue::Text("vip".to_string()));
+}
+
+#[test]
+fn yaml_is_detected_from_content_alone_without_a_filename_hint() {
+    let bytes = fixture("yaml", "list_of_records.yaml");
+    let parser = JsonXmlParser::new();
+    assert!(
+        parser.sniff(&bytes, None) > 0.5,
+        "expected genuine YAML content to score above csv/fixed's ceiling even with no filename hint"
+    );
+}
+
+#[test]
+fn yaml_reports_the_yaml_format_label_not_json() {
+    let bytes = fixture("yaml", "single_object.yaml");
+    let parser = JsonXmlParser::new();
+    let outcome = parser.parse(&bytes, "single_object.yaml", &ParseOptions::new()).unwrap();
+    assert_eq!(outcome.report.detected_format, "yaml");
+}
+
+#[test]
 fn xml_repeated_elements_become_rows_with_attributes_flattened() {
     let bytes = fixture("xml", "products.xml");
     let parser = JsonXmlParser::new();

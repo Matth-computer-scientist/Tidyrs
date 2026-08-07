@@ -40,7 +40,11 @@ const CASES: &[(&str, &str)] = &[
     ("json/orders_with_line_items.json", "json"),
     ("json/single_object.json", "json"),
     ("json/wrapped_items.json", "json"),
-    ("xml/products.xml", "json"), // JsonXmlParser handles both JSON and XML
+    ("xml/products.xml", "json"),          // JsonXmlParser handles both JSON and XML
+    ("yaml/list_of_records.yaml", "json"), // JsonXmlParser handles JSON/XML/YAML
+    ("yaml/single_object.yaml", "json"),
+    ("yaml/wrapped_items.yaml", "json"),
+    ("yaml/inconsistent_types.yaml", "json"),
     ("pdf/product_table.pdf", "pdf"),
     ("pdf/proportional_font_per_field_table.pdf", "pdf"),
     ("pdf/simple_table.pdf", "pdf"),
@@ -150,5 +154,51 @@ fn a_real_csv_table_past_the_first_4kb_is_still_detected() {
             d.confidence
         ),
         None => panic!("expected the trailing CSV table to be detected even though it starts past the first 4KB"),
+    }
+}
+
+#[test]
+fn a_log_file_with_colon_separated_timestamps_is_not_misdetected_as_yaml() {
+    // YAML has no unique leading character the way JSON/XML do, so its
+    // content-only detection has to lean on a `key: value` line-shape scan
+    // — exactly the shape a "HH:MM:SS" timestamp or a "field: value" log
+    // line can superficially resemble. This is what the fixed-width
+    // fixture already committed under fixtures/fixed/server_log.log
+    // exists to guard against (it's covered by the full-fixture-sweep
+    // tests above too), but a synthetic case with timestamps that contain
+    // literal colons makes the specific risk explicit.
+    let bytes = b"2026-08-01 09:15:02 INFO started worker pool with 4 threads\n\
+2026-08-01 09:15:03 INFO listening on port 8080\n\
+2026-08-01 09:15:10 WARN slow query took 800ms\n\
+2026-08-01 09:15:12 ERROR connection reset by peer\n\
+2026-08-01 09:15:15 INFO request completed in 12ms\n";
+
+    let registry = build_registry();
+    let detection = registry.detect(bytes, None);
+    if let Some(d) = detection {
+        assert_ne!(
+            d.parser.format_name(),
+            "json",
+            "timestamp-heavy log lines should not be misdetected as YAML (JsonXmlParser reports as 'json'), \
+             got confidence {:.2}",
+            d.confidence
+        );
+    }
+}
+
+#[test]
+fn a_genuine_yaml_mapping_is_detected_from_content_alone_over_csv_and_fixed() {
+    let bytes = b"- name: Alice\n  role: admin\n  active: true\n- name: Bob\n  role: viewer\n  active: false\n";
+    let registry = build_registry();
+    let detection = registry.detect(bytes, None);
+    match detection {
+        Some(d) => assert_eq!(
+            d.parser.format_name(),
+            "json",
+            "expected the YAML-handling parser (reports as 'json'), got '{}' (confidence {:.2})",
+            d.parser.format_name(),
+            d.confidence
+        ),
+        None => panic!("expected a genuine YAML mapping to be detected from content alone"),
     }
 }
