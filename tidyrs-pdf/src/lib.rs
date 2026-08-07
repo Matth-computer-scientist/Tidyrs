@@ -43,22 +43,37 @@ impl Default for PdfParser {
     }
 }
 
+/// A character position counts as a column gap if it's whitespace on at
+/// least this fraction of rows. Requiring *every* row to agree used to
+/// mean a single overflowing cell — a long name spilling past its column,
+/// a right-aligned number reaching one character further left than its
+/// neighbors — permanently glued two real columns into one for the whole
+/// table, since that one row's non-whitespace character at the gap
+/// position was enough to veto it. Real tables tolerate the occasional
+/// outlier row; this mirrors that instead of demanding pixel-perfect
+/// alignment from every single line.
+const GAP_AGREEMENT_THRESHOLD: f64 = 0.85;
+
 fn infer_column_spans(lines: &[&str]) -> Vec<(usize, usize)> {
     let max_len = lines.iter().map(|l| l.chars().count()).max().unwrap_or(0);
-    if max_len == 0 {
+    if max_len == 0 || lines.is_empty() {
         return vec![];
     }
     let chars: Vec<Vec<char>> = lines.iter().map(|l| l.chars().collect()).collect();
 
-    let mut is_gap = vec![true; max_len];
+    let mut whitespace_count = vec![0usize; max_len];
     for row in &chars {
-        for (pos, gap) in is_gap.iter_mut().enumerate() {
+        for (pos, count) in whitespace_count.iter_mut().enumerate() {
             let c = row.get(pos).copied().unwrap_or(' ');
-            if !c.is_whitespace() {
-                *gap = false;
+            if c.is_whitespace() {
+                *count += 1;
             }
         }
     }
+    let is_gap: Vec<bool> = whitespace_count
+        .iter()
+        .map(|&count| count as f64 / lines.len() as f64 >= GAP_AGREEMENT_THRESHOLD)
+        .collect();
 
     let mut spans = Vec::new();
     let mut start: Option<usize> = None;
@@ -231,5 +246,43 @@ impl TidyParser for PdfParser {
         report.rows_out = table.rows.len();
 
         Ok(ParseOutcome { tables: vec![table], report })
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn one_overflowing_row_no_longer_merges_two_columns() {
+        // "Christopherson" overflows one character into what is, on every
+        // other row, empty column-separator space. Requiring *all* rows to
+        // agree on a gap used to let that single outlier veto the column
+        // boundary for the entire table.
+        let lines = vec!["name           age", "Alice          30", "Christopherson 41", "Bob            22"];
+        let spans = infer_column_spans(&lines);
+        assert_eq!(spans.len(), 2, "expected 2 columns, got spans {spans:?}");
+    }
+
+    #[test]
+    fn a_clean_aligned_table_still_splits_on_every_gap() {
+        let lines = vec!["name   age  city", "Alice  30   Paris", "Bob    22   Lyon"];
+        let spans = infer_column_spans(&lines);
+        assert_eq!(spans.len(), 3, "expected 3 columns, got spans {spans:?}");
+    }
+
+    #[test]
+    fn majority_misaligned_column_is_not_falsely_merged() {
+        // If most rows genuinely have content at a position (not just one
+        // outlier), it must stay merged rather than being forced apart —
+        // the tolerance is for rare overflow, not a license to over-split.
+        let lines = vec!["ab cd", "abxcd", "abycd", "ab cd"];
+        let spans = infer_column_spans(&lines);
+        assert_eq!(spans.len(), 1, "expected the columns to stay merged, got spans {spans:?}");
+    }
+
+    #[test]
+    fn empty_input_infers_no_spans() {
+        assert_eq!(infer_column_spans(&[]), vec![]);
     }
 }
