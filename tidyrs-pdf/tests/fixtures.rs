@@ -7,6 +7,46 @@ fn fixture(name: &str) -> Vec<u8> {
 }
 
 #[test]
+fn title_line_above_ragged_data_does_not_lose_rows_or_the_header() {
+    // Regression (found via external QA testing, not the automated
+    // suite): find_header_offset's search used to be able to skip up to
+    // 3 leading lines, picking whichever skip level scored the most
+    // inferred columns. Its scoring threshold is a *fraction of however
+    // many rows remain in the slice being scored* — so on a table with a
+    // title line above ragged data (some cells legitimately blank),
+    // skipping further wasn't just discarding candidate title lines, it
+    // was also shrinking the sample the agreement threshold was measured
+    // against, making that threshold trivially easier to clear. That let
+    // a 3-line skip (title + real header + the first real data row) win
+    // outright, permanently losing a whole data row and misreading a
+    // second data row as the table's header. Capping how far this search
+    // is even allowed to look (see MAX_TITLE_SKIP in lib.rs) bounds the
+    // damage: every real product row must survive, whether or not the
+    // title line itself gets correctly identified and stripped.
+    let bytes = fixture("title_with_ragged_data.pdf");
+    let parser = PdfParser::new();
+    let outcome = parser.parse(&bytes, "title_with_ragged_data.pdf", &ParseOptions::new()).unwrap();
+    let table = &outcome.tables[0];
+
+    let all_cells: Vec<String> = table.rows.iter().flatten().map(|v| format!("{v:?}")).collect();
+    let joined = all_cells.join(" ");
+    for expected in [
+        "SKU-001",
+        "SKU-002",
+        "SKU-003",
+        "SKU-004",
+        "Casque Audio Bluetooth Pro",
+        "Chaise de Bureau Ergonomique",
+    ] {
+        assert!(
+            joined.contains(expected),
+            "expected to find {expected:?} somewhere in the parsed table, got rows: {:?}",
+            table.rows
+        );
+    }
+}
+
+#[test]
 fn simple_aligned_table_is_reconstructed() {
     let bytes = fixture("simple_table.pdf");
     let parser = PdfParser::new();

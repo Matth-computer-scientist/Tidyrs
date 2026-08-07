@@ -521,6 +521,31 @@ that matters for a pipeline tool: cleaning an already-clean file must be a
 no-op (byte-for-byte identical output on a second pass), for every stable
 format.
 
+External QA testing against the release binary (every input format, every
+CLI flag, deliberately adversarial edge cases — not just the automated
+suite) found and led to fixing six more issues: a `--batch` collision
+that silently overwrote one input's output with another's (two files
+sharing a stem but not an extension); `--batch` silently skipping
+subdirectories with no indication anything was excluded; duplicate
+header names in CSV/fixed-width/PDF output passing through unrenamed
+(unlike `tidyrs-xlsx`, which already disambiguated its own header row);
+an undocumented `--output` fallback and a `--no-merge-fill` flag with no
+help text at all; an inconsistent PascalCase `severity` field in the JSON
+cleaning report; and, in `tidyrs-pdf`, a `find_header_offset` search that
+could — on a title line above ragged data with some legitimately blank
+cells — skip past the real header *and* a real data row entirely, because
+its whitespace-alignment scoring threshold was a fraction of however many
+rows remained in the shrinking slice being scored, making that threshold
+easier to clear the further it over-skipped. See the `MAX_TITLE_SKIP`
+docs in `tidyrs-pdf/src/lib.rs` for the fix, and the module-level docs in
+the same file for a related, precisely diagnosed (not just fixed)
+limitation the same QA pass surfaced: a page mixing a real table with a
+separate free-text paragraph reads every character correctly (verified by
+dumping `tidyrs-pdf`'s glyph extraction directly) but gets column-sliced
+as if the paragraph were more table data, since there's no detector for
+where the tabular region ends — the PDF equivalent of the footer-trimming
+`tidyrs-xlsx` already has, which this crate doesn't.
+
 ### Real-world scenario tests
 
 Every other test in this repo isolates one specific behavior in a small,

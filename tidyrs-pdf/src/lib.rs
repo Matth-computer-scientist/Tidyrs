@@ -14,6 +14,25 @@
 //! scanned/image PDFs) is explicitly out of scope. Treat this crate's
 //! output as a starting point to review, not a guaranteed-correct
 //! extraction.
+//!
+//! One specific "visually complex" case worth calling out precisely,
+//! found via external QA testing: a page that mixes a real table with a
+//! separate free-text paragraph (e.g. a "Comments:" block below the
+//! data) does not read as garbled or truncated text — [`glyphs`]'s
+//! extraction is accurate down to the character; verified by dumping its
+//! raw output directly. The problem is one layer up: [`infer_column_spans`]
+//! looks for whitespace alignment across *every* remaining line
+//! uniformly, with no concept of "the table ends here, free text starts."
+//! A paragraph's word-wrapped lines don't share the table's column
+//! structure at all, so whatever weak, coincidental alignment survives
+//! across the mixed set gets used as real column boundaries — cutting
+//! paragraph sentences at whatever position happens to land there rather
+//! than at word boundaries. Fixing this properly needs a real "where does
+//! the tabular region end" detector (the same class of problem
+//! `tidyrs-xlsx`'s footer-trimming solves for spreadsheets, which this
+//! crate's own docs already admit it doesn't have an equivalent of) —
+//! out of scope for a targeted fix; noted here as a precisely diagnosed,
+//! not just vaguely acknowledged, limitation.
 
 mod glyphs;
 
@@ -133,8 +152,35 @@ fn extract_span(line: &str, span: (usize, usize)) -> String {
 /// counting and geometric spacing coincide) can still lose its header to
 /// this heuristic — a known, narrow remaining limitation rather than one
 /// worth another heuristic layer.
+///
+/// A second, more serious way the search could over-skip was found via
+/// external QA testing on a table with a title *and* a couple of ragged
+/// data rows (some cells legitimately empty): `infer_column_spans`'s
+/// whitespace-agreement threshold is a *fraction of however many rows are
+/// in the slice being scored* — which means skipping more leading lines
+/// doesn't just remove candidate title lines, it also shrinks the sample
+/// the 85% agreement bar is measured against, making that bar easier to
+/// clear on fewer, unrelated grounds. On the reported file this let
+/// `skip=3` (discarding the title, the real header, *and* a real data
+/// row) score higher than `skip=1` (discarding only the title) — losing
+/// a whole data row and misreading a data row as the header, not just a
+/// cosmetic misalignment. Capping how many lines this search is even
+/// allowed to try skipping (see `MAX_TITLE_SKIP`) bounds the damage: a
+/// single-line title is the overwhelming common case, so there's no
+/// realistic upside to letting the search reach past that far enough to
+/// start gaming its own scoring function on real data rows.
+/// How many leading lines the search below is allowed to try skipping.
+/// Deliberately just 1, not "as many as help the score" — see the
+/// docstring on `find_header_offset` for why letting this search deeper
+/// used to be able to eat real data rows, not just a title line. A
+/// genuine title block is overwhelmingly a single line in practice; a
+/// multi-line title is a known, accepted limitation, same tier as the
+/// multi-line-cell/rotated-text limitations already documented at the
+/// module level.
+const MAX_TITLE_SKIP: usize = 1;
+
 fn find_header_offset(lines: &[&str]) -> usize {
-    let max_skip = lines.len().saturating_sub(2).min(3);
+    let max_skip = lines.len().saturating_sub(2).min(MAX_TITLE_SKIP);
     let span_counts: Vec<usize> = (0..=max_skip).map(|skip| infer_column_spans(&lines[skip..]).len()).collect();
     let best_span_count = span_counts.iter().copied().max().unwrap_or(0);
     span_counts.iter().position(|&c| c == best_span_count).unwrap_or(0)

@@ -63,6 +63,7 @@ const CASES: &[(&str, &str)] = &[
     ("pdf/proportional_font_per_field_table.pdf", "pdf"),
     ("pdf/simple_table.pdf", "pdf"),
     ("pdf/table_with_title.pdf", "pdf"),
+    ("pdf/title_with_ragged_data.pdf", "pdf"),
     ("xlsx/junk_rows_and_merged_cells.xlsx", "xlsx"),
     ("xlsx/leading_blank_and_title_rows.xlsx", "xlsx"),
     ("xlsx/multi_sheet_different_shapes.xlsx", "xlsx"),
