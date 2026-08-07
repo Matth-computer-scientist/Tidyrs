@@ -196,6 +196,183 @@ fn gen_server_log(rng: &mut Rng) -> String {
     out
 }
 
+fn gen_accounts_yaml(rng: &mut Rng) -> String {
+    let names = [
+        "Alice Martin",
+        "Bob Nguyen",
+        "Charlotte Dubois",
+        "David Kim",
+        "Elena Rossi",
+        "Francois Petit",
+        "Jose Garcia",
+        "Zhang Wei",
+        "Aicha Diallo",
+        "Muller AG",
+    ];
+    let plans = ["free", "pro", "enterprise"];
+    let tags_pool = ["beta", "vip", "trial", "flagged", "partner"];
+
+    let mut out = String::new();
+    for i in 0..45u32 {
+        let id = 9000 + i;
+        let name = rng.choice(&names);
+        let plan = rng.choice(&plans);
+        let active = rng.next_f64() < 0.85;
+        writeln!(out, "- id: {id}").unwrap();
+        writeln!(out, "  name: {name}").unwrap();
+        writeln!(out, "  plan: {plan}").unwrap();
+        writeln!(out, "  active: {active}").unwrap();
+
+        // Inconsistent optional field across records, same real-world
+        // shape as gen_orders_json's "shipping" field: sometimes a
+        // nested mapping, sometimes a plain scalar, sometimes absent
+        // entirely — exactly what tidyrs-json's flattening has to
+        // survive without crashing, now exercised through the YAML path.
+        match rng.range(0, 3) {
+            0 => {
+                let amount = 9.99 + rng.next_f64() * 490.0;
+                writeln!(out, "  billing:").unwrap();
+                writeln!(out, "    method: card").unwrap();
+                writeln!(out, "    amount: {amount:.2}").unwrap();
+            }
+            1 => writeln!(out, "  billing: invoiced").unwrap(),
+            _ => {}
+        }
+
+        if rng.next_f64() < 0.4 {
+            let tag_count = rng.range(1, 3);
+            let tags: Vec<&str> = (0..tag_count).map(|_| *rng.choice(&tags_pool)).collect();
+            writeln!(out, "  tags: [{}]", tags.join(", ")).unwrap();
+        }
+    }
+    out
+}
+
+fn gen_services_ini(rng: &mut Rng) -> String {
+    let mut out = String::new();
+    out.push_str("; Service connection profiles, one per deployment environment\n");
+    let environments = [
+        ("dev", 5432, false),
+        ("qa", 5432, false),
+        ("staging", 5433, true),
+        ("production", 5433, true),
+    ];
+    for (env, port, has_ssl) in environments {
+        writeln!(out, "[{env}]").unwrap();
+        writeln!(out, "host = {env}-db.internal.example.com").unwrap();
+        writeln!(out, "port = {port}").unwrap();
+        writeln!(out, "user = svc_{env}").unwrap();
+        // "qa" deliberately omits timeout, like a real config that was
+        // never fully filled in for a lower environment — one row's
+        // missing key must come through as a real gap (Null), not force
+        // every other row's value to disappear too.
+        if env != "qa" {
+            writeln!(out, "timeout = {}", rng.range(15, 60)).unwrap();
+        }
+        if has_ssl {
+            writeln!(out, "ssl = true").unwrap();
+        }
+        out.push('\n');
+    }
+    out
+}
+
+fn gen_deploy_env(rng: &mut Rng) -> String {
+    let mut out = String::new();
+    out.push_str("# Deployment environment, sourced directly by the app's start script\n");
+    writeln!(
+        out,
+        "export DATABASE_URL=postgres://svc_production:{:x}@production-db.internal.example.com:5433/app",
+        rng.next_u64()
+    )
+    .unwrap();
+    writeln!(out, "export REDIS_URL=redis://cache.internal.example.com:6379/0").unwrap();
+    writeln!(out, "API_KEY=\"{:016x}\"", rng.next_u64()).unwrap();
+    out.push_str("DEBUG=false\n");
+    out.push_str("LOG_LEVEL=info\n");
+    writeln!(out, "MAX_WORKERS={}", rng.range(4, 32)).unwrap();
+    out.push_str("# Feature flags\n");
+    out.push_str("export FEATURE_NEW_CHECKOUT=true\n");
+    out.push_str("FEATURE_BETA_DASHBOARD=false\n");
+    out.push_str("SUPPORT_EMAIL='support@example.com'\n");
+    out
+}
+
+fn gen_shop_sqlite(path: &std::path::Path, rng: &mut Rng) {
+    let _ = std::fs::remove_file(path);
+    let conn = rusqlite::Connection::open(path).unwrap();
+    conn.execute_batch(
+        "CREATE TABLE customers (id INTEGER PRIMARY KEY, name TEXT NOT NULL, email TEXT, country TEXT, joined_date TEXT);
+         CREATE TABLE products (id INTEGER PRIMARY KEY, name TEXT NOT NULL, price REAL NOT NULL, in_stock INTEGER);
+         CREATE TABLE orders (order_id INTEGER PRIMARY KEY, customer_id INTEGER, product_id INTEGER, qty INTEGER, total REAL, order_date TEXT);",
+    )
+    .unwrap();
+
+    let names = [
+        "Alice Martin",
+        "Bob Nguyen",
+        "Charlotte Dubois",
+        "David Kim",
+        "Elena Rossi",
+        "Francois Petit",
+        "Jose Garcia",
+        "Zhang Wei",
+    ];
+    let countries = ["FR", "DE", "US", "GB", "JP"];
+    for i in 0..30u32 {
+        let id = 1 + i;
+        let name = rng.choice(&names);
+        // Realistic optional-field gap: not every customer record has a
+        // verified email on file.
+        let email: Option<String> = if rng.next_f64() < 0.85 {
+            Some(format!("{}@example.com", name.to_lowercase().replace(' ', ".")))
+        } else {
+            None
+        };
+        let country = rng.choice(&countries);
+        conn.execute(
+            "INSERT INTO customers (id, name, email, country, joined_date) VALUES (?1, ?2, ?3, ?4, ?5)",
+            rusqlite::params![id, name, email, country, format!("2025-{:02}-{:02}", rng.range(1, 13), rng.range(1, 29))],
+        )
+        .unwrap();
+    }
+
+    let product_names = ["Widget", "Gadget", "Thingamajig", "Doohickey", "Contraption", "Gizmo", "Sprocket"];
+    for i in 0..15u32 {
+        let id = 1 + i;
+        let name = rng.choice(&product_names);
+        let price = 4.99 + rng.next_f64() * 195.0;
+        conn.execute(
+            "INSERT INTO products (id, name, price, in_stock) VALUES (?1, ?2, ?3, ?4)",
+            rusqlite::params![id, format!("{name} #{id}"), price, rng.next_f64() < 0.9],
+        )
+        .unwrap();
+    }
+
+    for i in 0..60u32 {
+        let order_id = 5000 + i;
+        let customer_id = rng.range(1, 31);
+        let product_id = rng.range(1, 16);
+        let qty = rng.range(1, 6);
+        let price = conn
+            .query_row("SELECT price FROM products WHERE id = ?1", [product_id], |row| row.get::<_, f64>(0))
+            .unwrap();
+        let total = price * qty as f64;
+        conn.execute(
+            "INSERT INTO orders (order_id, customer_id, product_id, qty, total, order_date) VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
+            rusqlite::params![
+                order_id,
+                customer_id,
+                product_id,
+                qty,
+                total,
+                format!("2025-{:02}-{:02}", rng.range(1, 13), rng.range(1, 29))
+            ],
+        )
+        .unwrap();
+    }
+}
+
 fn gen_financial_report_xlsx(path: &std::path::Path) {
     let mut wb = Workbook::new();
     let fmt = Format::new();
@@ -328,6 +505,27 @@ fn main() {
         .unwrap();
 
     gen_financial_report_xlsx(&out_dir.join("q4_financial_report.xlsx"));
+
+    let mut rng = Rng::new(0xACC0_u64);
+    std::fs::File::create(out_dir.join("accounts_export.yaml"))
+        .unwrap()
+        .write_all(gen_accounts_yaml(&mut rng).as_bytes())
+        .unwrap();
+
+    let mut rng = Rng::new(0x5EC0_u64);
+    std::fs::File::create(out_dir.join("services.ini"))
+        .unwrap()
+        .write_all(gen_services_ini(&mut rng).as_bytes())
+        .unwrap();
+
+    let mut rng = Rng::new(0xDEC1_u64);
+    std::fs::File::create(out_dir.join("deploy.env"))
+        .unwrap()
+        .write_all(gen_deploy_env(&mut rng).as_bytes())
+        .unwrap();
+
+    let mut rng = Rng::new(0x540F_u64);
+    gen_shop_sqlite(&out_dir.join("shop.db"), &mut rng);
 
     println!("wrote fixtures to {}", out_dir.display());
 }

@@ -1970,6 +1970,7 @@ dependencies = [
  "clap",
  "csv",
  "predicates",
+ "rusqlite",
  "rust_xlsxwriter",
  "serde",
  "serde_json",

@@ -515,8 +515,11 @@ is different: it runs the CLI end-to-end against larger, deliberately
 messy fixtures under `fixtures/real_world/` (a 130-row sales export with
 mixed date formats/currency symbols/ragged rows, a 3-sheet financial
 report workbook, 40 nested JSON orders with inconsistent optional fields,
-an 80-line server log) that mix several kinds of mess in the same file
-the way an actual export would — covering workflows like a CI schema
+an 80-line server log, a 45-record YAML account export with an
+inconsistently-shaped optional field, a 4-environment `.ini` config with
+gaps where a key was never set, a `.env` deployment-secrets file, and a
+3-table SQLite shop database) that mix several kinds of mess in the same
+file the way an actual export would — covering workflows like a CI schema
 gate that must reject bad data, a mixed-format batch folder that must
 survive one corrupted file without aborting, and a dry-run-then-apply
 sequence, not just isolated parsing correctness.

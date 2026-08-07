@@ -1,0 +1,263 @@
+- id: 9000
+  name: Bob Nguyen
+  plan: free
+  active: true
+  billing:
+    method: card
+    amount: 368.93
+- id: 9001
+  name: Francois Petit
+  plan: free
+  active: true
+  billing: invoiced
+  tags: [partner]
+- id: 9002
+  name: Alice Martin
+  plan: enterprise
+  active: true
+  billing: invoiced
+- id: 9003
+  name: Elena Rossi
+  plan: free
+  active: true
+  billing: invoiced
+  tags: [trial]
+- id: 9004
+  name: Zhang Wei
+  plan: enterprise
+  active: false
+  billing: invoiced
+  tags: [flagged, trial]
+- id: 9005
+  name: Bob Nguyen
+  plan: pro
+  active: true
+  tags: [partner, vip]
+- id: 9006
+  name: Charlotte Dubois
+  plan: free
+  active: true
+  billing: invoiced
+- id: 9007
+  name: Charlotte Dubois
+  plan: free
+  active: true
+- id: 9008
+  name: Zhang Wei
+  plan: free
+  active: true
+  billing:
+    method: card
+    amount: 438.01
+- id: 9009
+  name: Muller AG
+  plan: enterprise
+  active: false
+  billing:
+    method: card
+    amount: 165.88
+  tags: [vip, beta]
+- id: 9010
+  name: Charlotte Dubois
+  plan: enterprise
+  active: true
+  billing:
+    method: card
+    amount: 51.96
+  tags: [flagged, partner]
+- id: 9011
+  name: Bob Nguyen
+  plan: enterprise
+  active: true
+- id: 9012
+  name: Aicha Diallo
+  plan: pro
+  active: true
+  billing:
+    method: card
+    amount: 368.51
+- id: 9013
+  name: Francois Petit
+  plan: pro
+  active: true
+  billing:
+    method: card
+    amount: 444.28
+  tags: [beta]
+- id: 9014
+  name: Alice Martin
+  plan: free
+  active: true
+  billing: invoiced
+- id: 9015
+  name: Muller AG
+  plan: enterprise
+  active: true
+  billing:
+    method: card
+    amount: 208.19
+  tags: [partner]
+- id: 9016
+  name: David Kim
+  plan: pro
+  active: true
+  tags: [flagged, flagged]
+- id: 9017
+  name: David Kim
+  plan: pro
+  active: true
+  billing: invoiced
+- id: 9018
+  name: Elena Rossi
+  plan: enterprise
+  active: true
+- id: 9019
+  name: Jose Garcia
+  plan: enterprise
+  active: true
+  billing: invoiced
+- id: 9020
+  name: Bob Nguyen
+  plan: pro
+  active: true
+  billing:
+    method: card
+    amount: 49.92
+  tags: [vip]
+- id: 9021
+  name: Bob Nguyen
+  plan: pro
+  active: false
+  billing: invoiced
+  tags: [trial, partner]
+- id: 9022
+  name: Alice Martin
+  plan: enterprise
+  active: true
+  billing:
+    method: card
+    amount: 262.35
+  tags: [beta]
+- id: 9023
+  name: Charlotte Dubois
+  plan: pro
+  active: true
+  billing: invoiced
+- id: 9024
+  name: Francois Petit
+  plan: pro
+  active: true
+  billing:
+    method: card
+    amount: 467.53
+- id: 9025
+  name: Zhang Wei
+  plan: free
+  active: false
+  billing:
+    method: card
+    amount: 338.63
+- id: 9026
+  name: Charlotte Dubois
+  plan: pro
+  active: true
+- id: 9027
+  name: Francois Petit
+  plan: pro
+  active: true
+  tags: [vip]
+- id: 9028
+  name: David Kim
+  plan: enterprise
+  active: true
+- id: 9029
+  name: Elena Rossi
+  plan: free
+  active: true
+  billing: invoiced
+- id: 9030
+  name: Elena Rossi
+  plan: enterprise
+  active: true
+  billing:
+    method: card
+    amount: 90.02
+- id: 9031
+  name: Zhang Wei
+  plan: enterprise
+  active: false
+  billing: invoiced
+  tags: [beta, trial]
+- id: 9032
+  name: Elena Rossi
+  plan: free
+  active: true
+  billing: invoiced
+  tags: [trial, beta]
+- id: 9033
+  name: Muller AG
+  plan: pro
+  active: true
+  billing: invoiced
+- id: 9034
+  name: Aicha Diallo
+  plan: free
+  active: true
+  billing: invoiced
+  tags: [beta]
+- id: 9035
+  name: Alice Martin
+  plan: free
+  active: true
+  billing:
+    method: card
+    amount: 121.99
+- id: 9036
+  name: Muller AG
+  plan: free
+  active: false
+  tags: [partner]
+- id: 9037
+  name: Francois Petit
+  plan: pro
+  active: true
+- id: 9038
+  name: Francois Petit
+  plan: pro
+  active: true
+  billing:
+    method: card
+    amount: 276.83
+- id: 9039
+  name: Bob Nguyen
+  plan: free
+  active: true
+  billing:
+    method: card
+    amount: 118.13
+  tags: [partner]
+- id: 9040
+  name: Jose Garcia
+  plan: pro
+  active: true
+- id: 9041
+  name: Zhang Wei
+  plan: free
+  active: true
+- id: 9042
+  name: Muller AG
+  plan: enterprise
+  active: true
+  tags: [trial, partner]
+- id: 9043
+  name: Charlotte Dubois
+  plan: pro
+  active: true
+  billing: invoiced
+  tags: [trial, vip]
+- id: 9044
+  name: Charlotte Dubois
+  plan: pro
+  active: true
+  billing: invoiced
+  tags: [vip, flagged]

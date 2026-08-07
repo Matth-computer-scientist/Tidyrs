@@ -451,3 +451,249 @@ verbose_report = true
         "config-supplied array_mode=explode should have applied, got {row_count} rows"
     );
 }
+
+// ---------------------------------------------------------------------
+// Scenario: account export in YAML, with an inconsistently-shaped
+// optional field across records (nested mapping / plain scalar / absent)
+// ---------------------------------------------------------------------
+
+#[test]
+fn accounts_yaml_flattens_an_inconsistently_shaped_field_without_dropping_rows() {
+    let tmp = tempfile::tempdir().unwrap();
+    let out = tmp.path().join("accounts.csv");
+
+    tidyloom()
+        .arg("clean")
+        .arg(fixture("accounts_export.yaml"))
+        .arg("--output")
+        .arg(&out)
+        .arg("--verbose-report")
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("detected: yaml"))
+        .stdout(predicate::str::contains("missing fields were filled with null"));
+
+    let content = std::fs::read_to_string(&out).unwrap();
+    let mut lines = content.lines();
+    let header = lines.next().unwrap();
+    // "billing" is sometimes a {method, amount} mapping, sometimes the
+    // plain scalar "invoiced", sometimes absent entirely — the generator
+    // exercises all three in the same file, the same real-world drift
+    // gen_orders_json's "shipping" field already covers for JSON.
+    for col in ["id", "name", "plan", "active", "billing", "billing.method", "billing.amount"] {
+        assert!(
+            header.split(',').any(|h| h == col),
+            "missing expected column '{col}' in header {header:?}"
+        );
+    }
+
+    // 45 generated accounts -> 45 rows, regardless of which optional
+    // shape "billing" happened to take for any given record.
+    assert_eq!(lines.count(), 45);
+}
+
+#[test]
+fn accounts_yaml_second_pass_is_a_no_op() {
+    let tmp = tempfile::tempdir().unwrap();
+    let first = tmp.path().join("pass1.csv");
+    let second = tmp.path().join("pass2.csv");
+
+    tidyloom()
+        .arg("clean")
+        .arg(fixture("accounts_export.yaml"))
+        .arg("--output")
+        .arg(&first)
+        .assert()
+        .success();
+    tidyloom().arg("clean").arg(&first).arg("--output").arg(&second).assert().success();
+
+    assert_eq!(std::fs::read_to_string(&first).unwrap(), std::fs::read_to_string(&second).unwrap());
+}
+
+// ---------------------------------------------------------------------
+// Scenario: multi-environment service config (.ini) and a deployment
+// secrets file (.env) from the same real-world pipeline
+// ---------------------------------------------------------------------
+
+#[test]
+fn services_ini_produces_one_row_per_environment_with_gaps_where_keys_are_missing() {
+    let tmp = tempfile::tempdir().unwrap();
+    let out = tmp.path().join("services.csv");
+
+    tidyloom()
+        .arg("clean")
+        .arg(fixture("services.ini"))
+        .arg("--output")
+        .arg(&out)
+        .arg("--verbose-report")
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("detected: ini"))
+        .stdout(predicate::str::contains("4 section(s) detected"));
+
+    let content = std::fs::read_to_string(&out).unwrap();
+    let mut rows: std::collections::HashMap<&str, Vec<&str>> = std::collections::HashMap::new();
+    let mut lines = content.lines();
+    let header: Vec<&str> = lines.next().unwrap().split(',').collect();
+    let section_idx = header.iter().position(|h| *h == "section").unwrap();
+    for line in lines {
+        let fields: Vec<&str> = line.split(',').collect();
+        rows.insert(fields[section_idx], fields);
+    }
+    assert_eq!(rows.len(), 4);
+
+    let timeout_idx = header.iter().position(|h| *h == "timeout").unwrap();
+    let ssl_idx = header.iter().position(|h| *h == "ssl").unwrap();
+
+    // "qa" deliberately has no timeout key in the source file — that gap
+    // must come through as a real empty field, not silently borrow
+    // another section's value or disappear from the row entirely.
+    assert_eq!(rows["qa"][timeout_idx], "");
+    assert_eq!(rows["qa"][ssl_idx], "");
+    // "production" has both timeout and ssl set.
+    assert_ne!(rows["production"][timeout_idx], "");
+    assert_eq!(rows["production"][ssl_idx], "true");
+    // "dev" has no ssl key anywhere in its section.
+    assert_eq!(rows["dev"][ssl_idx], "");
+}
+
+#[test]
+fn deploy_env_is_parsed_as_a_single_flat_record_with_export_prefix_and_quotes_handled() {
+    let tmp = tempfile::tempdir().unwrap();
+    let out = tmp.path().join("deploy.csv");
+
+    tidyloom()
+        .arg("clean")
+        .arg(fixture("deploy.env"))
+        .arg("--output")
+        .arg(&out)
+        .arg("--verbose-report")
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("detected: env"));
+
+    let content = std::fs::read_to_string(&out).unwrap();
+    let mut lines = content.lines();
+    let header: Vec<&str> = lines.next().unwrap().split(',').collect();
+    let row: Vec<&str> = lines.next().unwrap().split(',').collect();
+    assert!(lines.next().is_none(), "a flat .env file should produce exactly one row");
+
+    // Both the plain and the "export "-prefixed vars must appear as
+    // ordinary columns — the prefix is a shell-sourcing convention, not
+    // part of the key.
+    for key in [
+        "DATABASE_URL",
+        "REDIS_URL",
+        "API_KEY",
+        "MAX_WORKERS",
+        "FEATURE_NEW_CHECKOUT",
+        "SUPPORT_EMAIL",
+    ] {
+        assert!(header.contains(&key), "missing expected column '{key}' in header {header:?}");
+    }
+    let email_idx = header.iter().position(|h| *h == "SUPPORT_EMAIL").unwrap();
+    // Source has SUPPORT_EMAIL='support@example.com' (single-quoted) —
+    // the quotes must be stripped, not carried into the value.
+    assert_eq!(row[email_idx], "support@example.com");
+    let url_idx = header.iter().position(|h| *h == "DATABASE_URL").unwrap();
+    assert!(row[url_idx].starts_with("postgres://"));
+}
+
+// ---------------------------------------------------------------------
+// Scenario: a small shop's SQLite database (customers/products/orders),
+// the kind of thing exported from an internal admin tool for analysis
+// ---------------------------------------------------------------------
+
+#[test]
+fn shop_database_produces_one_csv_per_table_with_correct_row_counts() {
+    let tmp = tempfile::tempdir().unwrap();
+    let out = tmp.path().join("shop.csv");
+
+    tidyloom()
+        .arg("clean")
+        .arg(fixture("shop.db"))
+        .arg("--output")
+        .arg(&out)
+        .arg("--verbose-report")
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("detected: sqlite"))
+        .stdout(predicate::str::contains("found 3 table(s): customers, orders, products"));
+
+    let customers = std::fs::read_to_string(tmp.path().join("shop_customers.csv")).unwrap();
+    assert_eq!(customers.lines().count(), 31); // header + 30 customers
+
+    let products = std::fs::read_to_string(tmp.path().join("shop_products.csv")).unwrap();
+    assert_eq!(products.lines().count(), 16); // header + 15 products
+
+    let orders = std::fs::read_to_string(tmp.path().join("shop_orders.csv")).unwrap();
+    assert_eq!(orders.lines().count(), 61); // header + 60 orders
+
+    // Not every customer has a verified email on file — that gap must
+    // survive as a real empty field somewhere in the table, not get
+    // silently dropped or crash the whole read.
+    assert!(
+        customers.lines().skip(1).any(|line| line.split(',').nth(2) == Some("")),
+        "expected at least one customer row with a missing email"
+    );
+}
+
+#[test]
+fn shop_database_table_option_extracts_only_the_requested_table() {
+    let tmp = tempfile::tempdir().unwrap();
+    let out = tmp.path().join("shop.csv");
+
+    tidyloom()
+        .arg("clean")
+        .arg(fixture("shop.db"))
+        .arg("--output")
+        .arg(&out)
+        .arg("--table")
+        .arg("orders")
+        .assert()
+        .success();
+
+    // --table restricts to one table, so this is single-file mode: the
+    // plain --output path is used directly, no _orders suffix.
+    assert!(out.exists());
+    assert!(!tmp.path().join("shop_customers.csv").exists());
+    assert!(!tmp.path().join("shop_products.csv").exists());
+    let content = std::fs::read_to_string(&out).unwrap();
+    assert_eq!(content.lines().count(), 61); // header + 60 orders
+}
+
+// ---------------------------------------------------------------------
+// Scenario: an overnight batch drop folder containing every new format
+// added alongside the original CSV/Excel/JSON/log set
+// ---------------------------------------------------------------------
+
+#[test]
+fn mixed_batch_folder_handles_yaml_ini_env_and_sqlite_together() {
+    let tmp = tempfile::tempdir().unwrap();
+    let input_dir = tmp.path().join("incoming");
+    std::fs::create_dir_all(&input_dir).unwrap();
+
+    for name in ["accounts_export.yaml", "services.ini", "deploy.env", "shop.db"] {
+        std::fs::copy(fixture(name), input_dir.join(name)).unwrap();
+    }
+
+    let out_dir = tmp.path().join("clean");
+    tidyloom()
+        .arg("clean")
+        .arg("--batch")
+        .arg(&input_dir)
+        .arg("--output-dir")
+        .arg(&out_dir)
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("batch complete: 4 file(s) cleaned, 0 failure(s)"));
+
+    assert!(out_dir.join("accounts_export.csv").exists());
+    assert!(out_dir.join("services.csv").exists());
+    assert!(out_dir.join("deploy.csv").exists());
+    // shop.db has 3 tables -> per-table batch output, same naming scheme
+    // the multi-sheet Excel case already uses.
+    assert!(out_dir.join("shop_customers.csv").exists());
+    assert!(out_dir.join("shop_orders.csv").exists());
+    assert!(out_dir.join("shop_products.csv").exists());
+}

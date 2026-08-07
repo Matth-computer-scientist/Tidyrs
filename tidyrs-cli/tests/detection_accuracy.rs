@@ -65,6 +65,10 @@ const CASES: &[(&str, &str)] = &[
     ("real_world/q4_financial_report.xlsx", "xlsx"),
     ("real_world/sales_export_messy.csv", "csv"),
     ("real_world/server_activity.log", "fixed"),
+    ("real_world/accounts_export.yaml", "json"), // JsonXmlParser handles JSON/XML/YAML
+    ("real_world/services.ini", "ini"),
+    ("real_world/deploy.env", "ini"),
+    ("real_world/shop.db", "sqlite"),
 ];
 
 #[test]
