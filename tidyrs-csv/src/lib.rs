@@ -10,7 +10,7 @@ pub use stream::stream_clean_csv;
 
 use tidyrs_core::{AmbiguityResolver, CleaningReport, ParseOptions, ParseOutcome, RuleBasedResolver, TidyError, TidyParser, TidyResult, TidyTable};
 
-const CANDIDATE_DELIMITERS: [u8; 4] = [b',', b';', b'\t', b'|'];
+const CANDIDATE_DELIMITERS: [u8; 4] = *b",;\t|";
 
 pub struct CsvParser {
     resolver: Box<dyn AmbiguityResolver>,
