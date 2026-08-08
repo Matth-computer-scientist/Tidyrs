@@ -65,9 +65,9 @@ fn sniff_rejects_content_that_is_mostly_control_characters() {
     // in, so it has >=2 non-empty "lines" like real binary garbage would)
     // rather than relying on true randomness, which would be flaky in CI.
     let mut junk = vec![0x01u8, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08];
-    junk.extend([b'\n']);
+    junk.extend(*b"\n");
     junk.extend([0x01u8, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08]);
-    junk.extend([b'\n']);
+    junk.extend(*b"\n");
     junk.extend(vec![0x01u8; 100]);
 
     let parser = CsvParser::new();
