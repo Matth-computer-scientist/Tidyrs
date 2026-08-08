@@ -89,6 +89,54 @@ fn a_title_the_heuristic_cannot_detect_still_does_not_lose_data() {
 }
 
 #[test]
+fn a_data_cell_that_looks_like_two_words_can_still_cost_the_header() {
+    // Known limitation, not a regression to fix: found via external QA
+    // testing, worse than the two title-related cases above because the
+    // header is lost entirely rather than just merged with extra columns.
+    // "product qty amount" is the real header over a table whose product
+    // names contain an internal space ("Widget A", "Widget B", "Widget
+    // C") and whose qty/amount columns are right-aligned within wide
+    // fields. All three data rows happen to share a whitespace gap at the
+    // same character position (between the product name and its letter
+    // suffix) that the header text doesn't share, so *excluding* the
+    // header scores more inferred columns (4) than *including* it (3) —
+    // the mirror image of the "Rapport Ventes" title case, where
+    // *including* a junk line scored more columns than excluding it. Same
+    // root flaw either way: find_header_offset's "more columns wins" rule
+    // isn't a safe proxy for "found the real table" in either direction,
+    // and every attempted redesign (see the extended discussion on
+    // find_header_offset in lib.rs) broke more common cases than it
+    // fixed. This test exists to pin down that the failure stays
+    // *bounded*: the header is lost and "Widget"/"A" get split into two
+    // columns instead of one, but every real product, quantity, and
+    // amount value is still present and correct.
+    let bytes = fixture("right_aligned_numbers.pdf");
+    let parser = PdfParser::new();
+    let outcome = parser.parse(&bytes, "right_aligned_numbers.pdf", &ParseOptions::new()).unwrap();
+    let table = &outcome.tables[0];
+
+    // 2, not 3: the first data row ("Widget A  8  89.90") is misread as
+    // the header and lost from the row count — a real, visible-on-
+    // inspection quality issue — but "Widget B" and "Widget C"'s rows
+    // must both still come through with every value intact.
+    assert_eq!(
+        table.rows.len(),
+        2,
+        "the two data rows not consumed as the (wrong) header must survive, got rows: {:?}",
+        table.rows
+    );
+    let all_cells: Vec<String> = table.rows.iter().flatten().map(|v| format!("{v:?}")).collect();
+    let joined = all_cells.join(" ");
+    for expected in ["Widget", "B", "12", "45", "C", "3", "249"] {
+        assert!(
+            joined.contains(expected),
+            "expected to find {expected:?} somewhere in the parsed table, got rows: {:?}",
+            table.rows
+        );
+    }
+}
+
+#[test]
 fn simple_aligned_table_is_reconstructed() {
     let bytes = fixture("simple_table.pdf");
     let parser = PdfParser::new();

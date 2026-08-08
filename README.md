@@ -565,6 +565,27 @@ causing more harm than the bug it targeted. Left as a known, bounded
 limitation instead (the title survives as extra ambiguous columns, not
 lost data — see `title_with_no_ragged_data.pdf` and its regression test).
 
+A later, severity-ranked QA report flagged a third `find_header_offset`
+counter-example, worse than the two above because the header is lost
+outright rather than merely merged into extra columns:
+`right_aligned_numbers.pdf` has a genuine header ("product qty amount")
+over data rows whose product names contain an internal space ("Widget
+A", "Widget B", "Widget C"), right-aligned within wide numeric columns.
+All three data rows happen to share a whitespace gap at the exact same
+character position (between the product name and its letter suffix)
+that the header text doesn't share, so *excluding* the header scores
+more inferred columns than *including* it — the mirror image of the
+title-line problem, where *including* a junk line was what scored too
+many columns. Same root flaw either way: total column count isn't a
+safe proxy for "found the real table" in either direction, and — as
+with the other two cases — no further heuristic redesign was attempted
+here, since every prior attempt broke more common cases than it fixed.
+Left as a known, bounded limitation: the header and the first data row's
+column split are lost, but every actual product/quantity/amount value
+still survives (see
+`a_data_cell_that_looks_like_two_words_can_still_cost_the_header` in
+`tidyrs-pdf/tests/fixtures.rs`).
+
 ### Silent numeric/encoding corruption fixed via external QA testing
 
 A further QA round specifically targeted whether *values survive

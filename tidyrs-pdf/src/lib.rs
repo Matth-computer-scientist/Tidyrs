@@ -190,6 +190,25 @@ fn extract_span(line: &str, span: (usize, usize)) -> String {
 /// extra ambiguous columns, not silently dropped data (see
 /// `a_title_the_heuristic_cannot_detect_still_does_not_lose_data` in
 /// tests/fixtures.rs).
+///
+/// A third counter-example, found via a later external QA report, runs in
+/// the *opposite* direction from the two above: there, a junk line
+/// scoring more columns when *included* fooled the search. Here, on
+/// `right_aligned_numbers.pdf`, a genuine header ("product qty amount")
+/// scores *fewer* columns than excluding it, because the data rows below
+/// it ("Widget A", "Widget B", "Widget C") share an internal-space
+/// whitespace gap at one character position that the header text doesn't
+/// share — so dropping the header lets that coincidental gap register as
+/// a real column boundary, and "more columns wins" picks skip=1 over the
+/// correct skip=0. The header is lost outright (not just merged into
+/// extra columns, worse than the two cases above) and the first data row
+/// is misread as the header in its place. Same underlying flaw as
+/// always: total column count isn't a safe proxy for "found the real
+/// table" in either direction. Left as a known, bounded limitation for
+/// the same reason as the other two — see
+/// `a_data_cell_that_looks_like_two_words_can_still_cost_the_header` in
+/// tests/fixtures.rs, which pins down that every actual data value still
+/// survives even though the header and one row's column split don't.
 /// How many leading lines the search below is allowed to try skipping.
 /// Deliberately just 1, not "as many as help the score" — see the
 /// docstring on `find_header_offset` for why letting this search deeper

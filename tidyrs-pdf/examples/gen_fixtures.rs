@@ -162,5 +162,28 @@ fn main() {
         &[15.0, 60.0, 100.0],
     );
 
+    // Found via external QA testing: a monospaced table whose data cells
+    // contain an internal space ("Widget A") and whose numeric columns are
+    // right-aligned within wide fields. Excluding the real header line
+    // ("product qty amount") produces *more* inferred columns than
+    // including it, because "Widget A"/"Widget B"/"Widget C" all happen to
+    // share a whitespace gap at the same position that the header text
+    // doesn't share — the mirror image of the title-line problem above
+    // (there, including a junk line created spurious columns; here,
+    // excluding the real header does). find_header_offset's "more columns
+    // wins" rule picks the wrong side, so the header is lost and the first
+    // data row is misread as the header. See
+    // `a_data_cell_that_looks_like_two_words_can_still_cost_the_header` in
+    // tests/fixtures.rs for the accepted, bounded nature of this failure.
+    write_lines(
+        &out_dir.join("right_aligned_numbers.pdf"),
+        &[
+            "product           qty     amount",
+            "Widget A            8       89.90",
+            "Widget B           12       45.00",
+            "Widget C            3      249.00",
+        ],
+    );
+
     println!("wrote fixtures to {}", out_dir.display());
 }
