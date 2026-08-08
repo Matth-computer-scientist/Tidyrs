@@ -182,6 +182,85 @@ fn a_table_spanning_two_pages_does_not_merge_rows_across_the_page_break() {
 }
 
 #[test]
+fn a_free_text_paragraph_below_a_table_loses_no_characters() {
+    // Known limitation, not fully fixed: found via external QA testing, a
+    // real table followed by a separate free-text "Comments:" paragraph
+    // gets column-sliced wherever the table's whitespace alignment
+    // happens to land on the paragraph's word-wrapped lines, since there
+    // is no "where does the table end" detector (see the module docs in
+    // lib.rs — that part is out of scope, same as the find_header_offset
+    // limitations elsewhere in this file). What *is* fixed here: a prose
+    // character that happens to land exactly on a gap position every
+    // table row leaves blank used to be silently dropped rather than
+    // merely misplaced (`extract_row` used to be `extract_span` mapped
+    // per-column, which has no way to preserve a character between two
+    // spans). This test pins down that every character from the
+    // paragraph survives *somewhere* in the output, even though which
+    // cell it lands in is still unreliable.
+    let bytes = fixture("table_with_trailing_comments.pdf");
+    let parser = PdfParser::new();
+    let outcome = parser.parse(&bytes, "table_with_trailing_comments.pdf", &ParseOptions::new()).unwrap();
+    let table = &outcome.tables[0];
+
+    // Every real table value must still be exactly right — the paragraph
+    // being present at all must not disturb the table rows above it. (The
+    // "region"/"units" header text merging into one span here is this
+    // fixture's own column-width quirk, unrelated to what this test is
+    // pinning down — see the title/right-aligned-numbers tests above for
+    // that separate class of limitation.)
+    assert_eq!(table.headers[1], "revenue");
+    assert_eq!(
+        table.rows[0][0],
+        TidyValue::Text("North      120".to_string()),
+        "got headers {:?}, rows {:?}",
+        table.headers,
+        table.rows
+    );
+    assert_eq!(col(&table.headers, &table.rows[2], "revenue"), &TidyValue::Float(8899.99));
+
+    // Concatenate each row's cells *without* a separator (cells are in
+    // left-to-right span order, so this reconstructs exactly what a gap-
+    // position character being glued onto its neighbor should produce)
+    // and confirm no letter from the paragraph went missing anywhere —
+    // this is what actually regressed before extract_row: "regions" lost
+    // its leading "r" and "underperformed" lost its leading "u" (glued
+    // instead onto "region" one cell over), both silently, not just
+    // misplaced into the wrong column.
+    let per_row_concat: Vec<String> = table
+        .rows
+        .iter()
+        .map(|row| {
+            row.iter()
+                .map(|v| match v {
+                    TidyValue::Text(s) => s.clone(),
+                    other => format!("{other:?}"),
+                })
+                .collect::<String>()
+        })
+        .collect();
+    let joined = per_row_concat.join(" ");
+    for expected_word in [
+        "Comments",
+        "Sales",
+        "were",
+        "strong",
+        "regions",
+        "quarter",
+        "trimestre",
+        "South",
+        "underperformed",
+        "warehouse",
+        "delay",
+    ] {
+        assert!(
+            joined.contains(expected_word),
+            "expected {expected_word:?} to survive intact within a single row, got rows: {:?}",
+            table.rows
+        );
+    }
+}
+
+#[test]
 fn simple_aligned_table_is_reconstructed() {
     let bytes = fixture("simple_table.pdf");
     let parser = PdfParser::new();

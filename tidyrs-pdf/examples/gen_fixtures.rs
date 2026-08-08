@@ -234,5 +234,30 @@ fn main() {
         3,
     );
 
+    // Found via external QA testing: a real table followed by a separate
+    // free-text paragraph (e.g. a "Comments:" block). The paragraph's
+    // word-wrapped lines don't share the table's column structure, so
+    // they get column-sliced wherever the table's whitespace alignment
+    // happens to land — see the module docs in lib.rs for why fixing that
+    // fully is out of scope. What *is* fixed (see `extract_row`): a prose
+    // character landing exactly on a gap position used to be silently
+    // dropped rather than just misplaced ("regions" losing its leading
+    // "r" entirely). "trimestre" in the second paragraph line is the
+    // original reported word that motivated this investigation.
+    write_lines(
+        &out_dir.join("table_with_trailing_comments.pdf"),
+        &[
+            "region     units   revenue",
+            "North      120     4500.50",
+            "South      95      3120.00",
+            "East       210     8899.99",
+            "",
+            "Comments:",
+            "Sales were strong in the North and East regions this quarter,",
+            "largely driven by the new product launch in early trimestre.",
+            "The South region underperformed due to a warehouse delay.",
+        ],
+    );
+
     println!("wrote fixtures to {}", out_dir.display());
 }

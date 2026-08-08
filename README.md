@@ -586,6 +586,27 @@ still survives (see
 `a_data_cell_that_looks_like_two_words_can_still_cost_the_header` in
 `tidyrs-pdf/tests/fixtures.rs`).
 
+A follow-up investigation into the free-text-paragraph limitation
+described earlier (a real table followed by a separate "Comments:" block,
+whose word-wrapped lines get column-sliced since there's no "table ends
+here" detector) found a narrower, genuinely fixable bug inside that same
+case: a prose character can land exactly on a "gap" column position that
+every real table row leaves blank — pure word-wrap coincidence — and row
+extraction used to map each inferred column span over the line
+independently, with no way to preserve a character falling *between*
+spans. That character was silently dropped, not just misplaced ("regions"
+losing its leading "r" entirely). Unlike the `find_header_offset`
+counter-examples above, this had a safe, targeted fix: `extract_row`
+(replacing the old per-span `extract_span` mapping) glues a gap-position
+character onto its nearest cell instead of discarding it. The paragraph
+still doesn't reconstruct correctly — that's still the same out-of-scope
+"table end" problem — but no character is silently lost doing it, which
+is the actual guarantee this crate promises elsewhere. Safe to fix
+outright because it's a no-op on any well-aligned table: a gap position
+is blank on nearly every row by definition. See
+`a_free_text_paragraph_below_a_table_loses_no_characters` in
+`tidyrs-pdf/tests/fixtures.rs`.
+
 ### Silent numeric/encoding corruption fixed via external QA testing
 
 A further QA round specifically targeted whether *values survive

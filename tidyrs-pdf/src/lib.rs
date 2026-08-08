@@ -33,6 +33,24 @@
 //! crate's own docs already admit it doesn't have an equivalent of) —
 //! out of scope for a targeted fix; noted here as a precisely diagnosed,
 //! not just vaguely acknowledged, limitation.
+//!
+//! A follow-up investigation into this same case found something worth
+//! fixing on its own, narrower than the "table end" detector above: a
+//! prose character can land exactly on a "gap" column position that every
+//! real table row leaves blank (pure word-wrap coincidence), and the row-
+//! extraction used to map each inferred column span over the line
+//! independently, with no way to preserve a character that fell *between*
+//! spans — so it was silently dropped rather than merely misplaced (e.g.
+//! "regions" losing its leading "r" entirely, not landing in the wrong
+//! cell). [`extract_row`] fixes exactly that: a gap-position character is
+//! now glued onto the nearest cell instead of discarded. The paragraph
+//! still doesn't reconstruct correctly — that's still the same
+//! out-of-scope "table end" problem — but no character is silently lost
+//! doing it, which is the actual guarantee this crate promises elsewhere.
+//! This was safe to fix outright (unlike the `find_header_offset`
+//! counter-examples below) because it's a no-op on any well-aligned
+//! table: a gap position is blank on nearly every row by definition, so
+//! there's essentially never real content there to preserve.
 
 mod glyphs;
 
@@ -111,8 +129,49 @@ fn infer_column_spans(lines: &[&str]) -> Vec<(usize, usize)> {
     spans
 }
 
-fn extract_span(line: &str, span: (usize, usize)) -> String {
-    line.chars().skip(span.0).take(span.1 - span.0).collect::<String>().trim().to_string()
+/// Splits one line into `spans.len()` cells, one per span (the characters
+/// in `span.0..span.1`, trimmed) — except a non-whitespace character that
+/// lands *between* two spans (a real "gap" position, by definition blank
+/// on the overwhelming majority of rows — see [`GAP_AGREEMENT_THRESHOLD`])
+/// is appended to the nearest preceding cell instead of silently
+/// discarded.
+///
+/// Found via external QA testing: a page mixing a real table with a
+/// free-text paragraph (see the module docs) can, on the paragraph's
+/// lines, have real prose characters fall exactly on a gap position that
+/// every table row leaves blank — a coincidence of word-wrap, not
+/// evidence the paragraph shares the table's structure. An earlier
+/// version of this function mapped each span independently over the
+/// line, which has no way to preserve characters that fall in the space
+/// *between* spans, so they were dropped outright — genuine, silent
+/// character loss (e.g. "regions" losing its leading "r"), not just
+/// characters landing in the "wrong" column. Gluing them onto the nearest
+/// cell doesn't reconstruct the paragraph correctly (that still needs the
+/// "where does the table end" detector the module docs describe as out
+/// of scope), but it upholds this crate's actual guarantee: garbled
+/// structure is reviewable, silently missing data is not. On a real,
+/// well-aligned table this is a no-op — a gap position is, by
+/// construction, blank on nearly every row, so there's essentially never
+/// non-whitespace content to glue anywhere.
+fn extract_row(line: &str, spans: &[(usize, usize)]) -> Vec<String> {
+    let chars: Vec<char> = line.chars().collect();
+    let mut cells = vec![String::new(); spans.len()];
+    for (pos, &ch) in chars.iter().enumerate() {
+        if let Some(i) = spans.iter().position(|&(s, e)| pos >= s && pos < e) {
+            cells[i].push(ch);
+            continue;
+        }
+        if ch.is_whitespace() {
+            continue;
+        }
+        // Real content in a gap position: attach to the last span that
+        // ends at or before this position, or the first span if this
+        // falls before every span (e.g. an unexpectedly long line with
+        // its own leading indent).
+        let target = spans.iter().rposition(|&(_, e)| e <= pos).unwrap_or(0);
+        cells[target].push(ch);
+    }
+    cells.into_iter().map(|s| s.trim().to_string()).collect()
 }
 
 /// A title line above the real header (e.g. "Quarterly Sales Report")
@@ -307,7 +366,7 @@ impl TidyParser for PdfParser {
             spans.len()
         ));
 
-        let headers: Vec<String> = spans.iter().map(|&s| extract_span(table_lines[0], s)).collect();
+        let headers: Vec<String> = extract_row(table_lines[0], &spans);
         let mut headers: Vec<String> = headers
             .into_iter()
             .enumerate()
@@ -326,10 +385,7 @@ impl TidyParser for PdfParser {
             }
         }
 
-        let raw_rows: Vec<Vec<String>> = table_lines[1..]
-            .iter()
-            .map(|line| spans.iter().map(|&s| extract_span(line, s)).collect())
-            .collect();
+        let raw_rows: Vec<Vec<String>> = table_lines[1..].iter().map(|line| extract_row(line, &spans)).collect();
         report.rows_in = raw_rows.len();
         let typed = tidyrs_core::type_columns(&headers, &raw_rows, self.resolver.as_ref());
         for (col, guess, confidence) in &typed.ambiguous_columns {
