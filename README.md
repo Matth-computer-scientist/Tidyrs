@@ -904,6 +904,7 @@ implementations for other formats. See [CONTRIBUTING.md](CONTRIBUTING.md)
 for the full guide: what to test before opening a PR, how to regenerate
 binary fixtures, commit style, and a walkthrough of adding a new format.
 Participation is governed by the [Code of Conduct](CODE_OF_CONDUCT.md).
+See [ROADMAP.md](ROADMAP.md) for where the project is headed next.
 
 ## License
 

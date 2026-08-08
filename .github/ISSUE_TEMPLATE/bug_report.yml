@@ -1,0 +1,97 @@
+name: Bug report
+description: A parser produced wrong/corrupted output, crashed, or misdetected a format
+title: "[bug] "
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for filing a bug — this project treats silent data corruption
+        and crashes on untrusted input as the most serious class of issue,
+        so precise repro details make a real difference.
+
+  - type: dropdown
+    id: format
+    attributes:
+      label: Format
+      description: Which input format is affected?
+      options:
+        - CSV
+        - Excel (.xlsx)
+        - Fixed-width
+        - JSON / XML / YAML
+        - PDF
+        - INI / .env
+        - SQLite
+        - Apache ORC
+        - Apache Parquet
+        - Apache Avro
+        - Not format-specific (CLI, config, export, other)
+    validations:
+      required: true
+
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened?
+      description: What did you expect, and what did you get instead? Include the actual output if the bug is about wrong/corrupted values, not just an error message.
+      placeholder: |
+        Input: "00501" (a postal code column)
+        Expected: "00501" preserved as text
+        Got: 501 (leading zero silently stripped)
+    validations:
+      required: true
+
+  - type: textarea
+    id: repro
+    attributes:
+      label: Minimal reproduction
+      description: The smallest input that reproduces this — a few lines of CSV/JSON/etc pasted inline is far more useful than a large real file. If the bug needs a binary format (Excel/PDF/Parquet/Avro/SQLite) and you can share a minimal or anonymized example file, attach it.
+      render: text
+    validations:
+      required: true
+
+  - type: input
+    id: command
+    attributes:
+      label: Command run
+      description: The exact `tidyloom` command (or library call) that triggered this
+      placeholder: tidyloom clean messy.csv -o clean.csv
+    validations:
+      required: false
+
+  - type: input
+    id: version
+    attributes:
+      label: tidyloom / crate version
+      description: Output of `tidyloom --version`, or the git commit if built from source
+    validations:
+      required: true
+
+  - type: input
+    id: rust-version
+    attributes:
+      label: Rust version
+      description: Output of `rustc --version` (only relevant if building from source)
+    validations:
+      required: false
+
+  - type: dropdown
+    id: os
+    attributes:
+      label: OS
+      options:
+        - Linux
+        - macOS
+        - Windows
+        - Other / not sure
+    validations:
+      required: true
+
+  - type: textarea
+    id: additional
+    attributes:
+      label: Anything else?
+      description: Cleaning report output (--report-file), stack trace, or other context
+    validations:
+      required: false

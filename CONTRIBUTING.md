@@ -13,7 +13,9 @@ around:
   format](#adding-a-new-format) below.
 
 If you're looking for a low-risk first contribution, check the repo's
-issues for anything labeled `good first issue`.
+issues for anything labeled `good first issue`. See
+[ROADMAP.md](ROADMAP.md) for the current direction if you're looking for
+a larger piece of work to pick up.
 
 ## Before you start
 
