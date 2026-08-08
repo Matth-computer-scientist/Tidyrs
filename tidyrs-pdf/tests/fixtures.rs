@@ -6,6 +6,14 @@ fn fixture(name: &str) -> Vec<u8> {
     std::fs::read(path).unwrap_or_else(|e| panic!("missing fixture {name} (run `cargo run -p tidyrs-pdf --example gen_fixtures_pdf`): {e}"))
 }
 
+fn col<'a>(headers: &[String], row: &'a [TidyValue], name: &str) -> &'a TidyValue {
+    let idx = headers
+        .iter()
+        .position(|h| h == name)
+        .unwrap_or_else(|| panic!("no column '{name}' in {headers:?}"));
+    &row[idx]
+}
+
 #[test]
 fn title_line_above_ragged_data_does_not_lose_rows_or_the_header() {
     // Regression (found via external QA testing, not the automated
@@ -134,6 +142,43 @@ fn a_data_cell_that_looks_like_two_words_can_still_cost_the_header() {
             table.rows
         );
     }
+}
+
+#[test]
+fn a_table_spanning_two_pages_does_not_merge_rows_across_the_page_break() {
+    // Regression (found via external QA testing): glyph rows were
+    // clustered purely by Y position with no concept of a page boundary.
+    // Each page's own coordinate flip is relative to that page's own
+    // media box, so page 2's rows landed at nearly the same (x, y) as
+    // page 1's — e.g. both pages naturally start their first row a fixed
+    // distance from their own top edge. That let unrelated rows from
+    // different pages get merged and their glyphs interleaved
+    // character-by-character (a real report this reproduced against
+    // showed a header word like "Prix" coming out as "column_3" + "rix").
+    // See `glyphs::group_into_rows` for the fix: a page change now forces
+    // a new row unconditionally, the same way the Y-tolerance already did
+    // for genuinely different lines on one page.
+    let bytes = fixture("multi_page_table.pdf");
+    let parser = PdfParser::new();
+    let outcome = parser.parse(&bytes, "multi_page_table.pdf", &ParseOptions::new()).unwrap();
+    let table = &outcome.tables[0];
+
+    assert_eq!(table.headers, vec!["sku", "description", "price"]);
+    assert_eq!(
+        table.rows.len(),
+        4,
+        "all 4 data rows across both pages must survive, got rows: {:?}",
+        table.rows
+    );
+    assert_eq!(table.rows[0][0], TidyValue::Text("A100".to_string()));
+    assert_eq!(table.rows[1][2], TidyValue::Float(14.5));
+    // Page 2's rows specifically — the ones that used to get corrupted.
+    assert_eq!(
+        col(&table.headers, &table.rows[2], "description"),
+        &TidyValue::Text("Green Widget".to_string())
+    );
+    assert_eq!(col(&table.headers, &table.rows[3], "sku"), &TidyValue::Text("A103".to_string()));
+    assert_eq!(col(&table.headers, &table.rows[3], "price"), &TidyValue::Float(7.0));
 }
 
 #[test]

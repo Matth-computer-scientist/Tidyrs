@@ -34,10 +34,23 @@ struct Glyph {
     font_size: f64,
     ch: char,
     width: f64,
+    /// Which page this glyph came from. `begin_page`'s flip transform is
+    /// computed relative to *that page's own* media box, so two glyphs on
+    /// different pages routinely end up with near-identical (x, y) — e.g.
+    /// both pages' headers sit a fixed distance from their own top-left
+    /// corner. Without tracking the page, `group_into_rows`'s purely
+    /// Y-based clustering (see its docs) had no way to tell those apart
+    /// and would merge/interleave two unrelated rows from different pages
+    /// into one, corrupting both (found via external QA testing on a
+    /// multi-page table: a header word like "Prix" came out split into
+    /// "column_3" and "rix" because it had been interleaved character-by-
+    /// character with the next page's same-position header row).
+    page: u32,
 }
 
 struct GlyphCollector {
     flip_ctm: Transform,
+    current_page: u32,
     glyphs: Vec<Glyph>,
 }
 
@@ -45,16 +58,18 @@ impl GlyphCollector {
     fn new() -> Self {
         Self {
             flip_ctm: Transform::identity(),
+            current_page: 0,
             glyphs: Vec::new(),
         }
     }
 }
 
 impl OutputDev for GlyphCollector {
-    fn begin_page(&mut self, _page_num: u32, media_box: &MediaBox, _art_box: Option<(f64, f64, f64, f64)>) -> Result<(), OutputError> {
+    fn begin_page(&mut self, page_num: u32, media_box: &MediaBox, _art_box: Option<(f64, f64, f64, f64)>) -> Result<(), OutputError> {
         // Same flip used internally by pdf-extract's own PlainTextOutput:
         // PDF space is bottom-up, we want top-down reading order.
         self.flip_ctm = Transform::row_major(1., 0., 0., -1., 0., media_box.ury - media_box.lly);
+        self.current_page = page_num;
         Ok(())
     }
 
@@ -75,6 +90,7 @@ impl OutputDev for GlyphCollector {
                 font_size: effective_font_size,
                 ch: c,
                 width,
+                page: self.current_page,
             });
         }
         Ok(())
@@ -114,26 +130,37 @@ fn median(mut values: Vec<f64>) -> Option<f64> {
 /// starts a new row when it's further from the current row's reference Y
 /// than half the document's typical font size (a tolerance that's
 /// forgiving of small baseline jitter within one printed line but still
-/// separates genuinely different lines).
+/// separates genuinely different lines) — *or* when it's on a different
+/// page from the current row, regardless of Y distance. Page boundaries
+/// are unambiguous ground truth from the PDF's own structure (unlike the
+/// Y-tolerance heuristic), and they must win outright: each page's flip
+/// transform is relative to that page's own media box, so two unrelated
+/// rows on different pages routinely land at nearly the same Y (e.g. both
+/// pages' headers sit the same distance from their own top edge). Without
+/// this, those same-position rows from different pages get merged and
+/// their glyphs interleaved by the X-sort below — real, silent data
+/// corruption on any multi-page table, not just a cosmetic misalignment.
 fn group_into_rows(mut glyphs: Vec<Glyph>) -> Vec<Vec<Glyph>> {
     if glyphs.is_empty() {
         return vec![];
     }
-    glyphs.sort_by(|a, b| a.y.partial_cmp(&b.y).unwrap_or(std::cmp::Ordering::Equal));
+    glyphs.sort_by(|a, b| (a.page, a.y).partial_cmp(&(b.page, b.y)).unwrap_or(std::cmp::Ordering::Equal));
 
     let tolerance = median(glyphs.iter().map(|g| g.font_size).collect()).unwrap_or(10.0) * 0.5;
 
     let mut rows: Vec<Vec<Glyph>> = Vec::new();
     let mut current: Vec<Glyph> = Vec::new();
     let mut row_y = glyphs[0].y;
+    let mut row_page = glyphs[0].page;
 
     for g in glyphs {
-        if !current.is_empty() && (g.y - row_y).abs() > tolerance {
+        if !current.is_empty() && (g.page != row_page || (g.y - row_y).abs() > tolerance) {
             current.sort_by(|a, b| a.x.partial_cmp(&b.x).unwrap_or(std::cmp::Ordering::Equal));
             rows.push(std::mem::take(&mut current));
         }
         if current.is_empty() {
             row_y = g.y;
+            row_page = g.page;
         }
         current.push(g);
     }
@@ -303,6 +330,7 @@ mod tests {
                 font_size,
                 ch,
                 width,
+                page: 0,
             });
             x += width * font_size;
         }

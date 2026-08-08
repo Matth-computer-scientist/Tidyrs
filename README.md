@@ -639,6 +639,26 @@ warning:
   row per line, reusing the exact same flattening pass JSON/YAML already
   share.
 
+A later, separate QA report described a PDF with a table spanning two
+pages coming out with mis-split columns (a header word like "Prix"
+reading as "column_3" + "rix") while every value still survived —
+initially assumed consistent with the already-documented, deliberately
+unfixed `find_header_offset` limitations above. Investigating it
+properly found a different, genuine bug instead: `tidyrs-pdf`'s glyph
+row-clustering (`glyphs::group_into_rows`) grouped glyphs purely by Y
+position with no concept of a page boundary. Each PDF page's own
+coordinate flip is relative to *that page's* media box, so two unrelated
+rows on different pages routinely land at nearly the same (x, y) — both
+pages' first rows sit the same distance from their own top edge, for
+instance — and got merged, their glyphs interleaved character-by-
+character. Unlike the title-detection heuristics, this had a real,
+non-regressing fix: page boundaries are unambiguous ground truth from
+the PDF's own structure, so a page change now forces a new row
+unconditionally, the same way the existing Y-tolerance already did for
+genuinely different lines on the same page. See
+`a_table_spanning_two_pages_does_not_merge_rows_across_the_page_break` in
+`tidyrs-pdf/tests/fixtures.rs`.
+
 One report from this round turned out **not** to be a bug: a formula
 cell reading back blank instead of evaluated, and a workbook's `0.1+0.2`
 column reading as `0`. Both traced to the specific *test fixture*
