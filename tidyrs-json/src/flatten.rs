@@ -133,10 +133,74 @@ fn json_scalar_to_tidy(v: &Value) -> TidyValue {
             if let Some(i) = n.as_i64() {
                 TidyValue::Int(i)
             } else {
-                TidyValue::Float(n.as_f64().unwrap_or(0.0))
+                // Requires the "arbitrary_precision" feature on
+                // serde_json (see the workspace Cargo.toml's comment):
+                // without it, a JSON integer literal too big for i64/u64
+                // is already lossily converted to f64 by serde_json's
+                // own parser before this function ever runs — no
+                // post-processing here could recover the original
+                // digits. With it, n.to_string() reproduces the exact
+                // source text, so a whole number that merely overflowed
+                // i64 (not a genuine decimal/exponent literal) can be
+                // kept as Text instead of silently rounded through f64 —
+                // same corruption class, same fix, as
+                // TidyValue::looks_like_a_whole_number in tidyrs-core.
+                let text = n.to_string();
+                if tidyrs_core::looks_like_a_whole_number(&text) {
+                    TidyValue::Text(text)
+                } else {
+                    TidyValue::Float(n.as_f64().unwrap_or(0.0))
+                }
             }
         }
         Value::String(s) => TidyValue::infer_from_str(s),
         other => TidyValue::Text(other.to_string()),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn an_integer_literal_too_big_for_i64_keeps_its_exact_digits() {
+        // Regression (found via external QA testing): serde_json's own
+        // Number type parses an integer literal too big for i64/u64
+        // straight into a lossy f64 *at parse time*, unless the
+        // "arbitrary_precision" feature is enabled (see the workspace
+        // Cargo.toml) — confirmed directly, without that feature this
+        // exact literal becomes Number(1e+26) before any of tidyloom's
+        // own code runs. "99999999999999999999999999" (26 digits) must
+        // not silently become "100000000000000000000000000".
+        let v: serde_json::Value = serde_json::from_str("99999999999999999999999999").unwrap();
+        assert_eq!(json_scalar_to_tidy(&v), TidyValue::Text("99999999999999999999999999".to_string()));
+    }
+
+    #[test]
+    fn an_ordinary_integer_still_becomes_a_native_int() {
+        let v: serde_json::Value = serde_json::from_str("42").unwrap();
+        assert_eq!(json_scalar_to_tidy(&v), TidyValue::Int(42));
+    }
+
+    #[test]
+    fn i64_min_still_becomes_a_native_int_not_text() {
+        let v: serde_json::Value = serde_json::from_str("-9223372036854775808").unwrap();
+        assert_eq!(json_scalar_to_tidy(&v), TidyValue::Int(i64::MIN));
+    }
+
+    #[test]
+    fn a_genuine_decimal_still_becomes_a_native_float() {
+        let v: serde_json::Value = serde_json::from_str("10.5").unwrap();
+        assert_eq!(json_scalar_to_tidy(&v), TidyValue::Float(10.5));
+    }
+
+    #[test]
+    fn a_genuine_scientific_notation_literal_still_becomes_a_native_float() {
+        // 1e300 has no exact integer representation at all (unlike the
+        // oversized-integer case above) — a real float, not a whole
+        // number that merely overflowed i64, so the f64 path is correct
+        // here and must not be redirected to Text.
+        let v: serde_json::Value = serde_json::from_str("1e300").unwrap();
+        assert_eq!(json_scalar_to_tidy(&v), TidyValue::Float(1e300));
     }
 }

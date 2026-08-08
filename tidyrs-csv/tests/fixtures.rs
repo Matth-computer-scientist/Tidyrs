@@ -222,3 +222,22 @@ fn a_postal_code_with_a_leading_zero_is_not_silently_converted_to_a_number() {
         );
     }
 }
+
+#[test]
+fn an_integer_too_big_for_i64_is_not_silently_rounded_through_a_float() {
+    // Regression (found via external QA testing, round 4): a whole
+    // number too big for i64 used to fall through to str::parse::<f64>,
+    // which only has ~15-17 significant decimal digits of precision —
+    // "9999999999999999999" (20 digits) silently became
+    // "10000000000000000000", and i64::MIN silently became
+    // "-9223372036854776000" whenever it landed in a column resolved to
+    // Float (e.g. alongside other overflowing values). Both must keep
+    // their exact digits as text instead.
+    let bytes = b"id,amount\n1,9999999999999999999\n2,-9223372036854775808\n".to_vec();
+    let parser = CsvParser::new();
+    let outcome = parser.parse(&bytes, "overflow.csv", &ParseOptions::new()).unwrap();
+    let table = &outcome.tables[0];
+
+    assert_eq!(table.rows[0][1], TidyValue::Text("9999999999999999999".to_string()));
+    assert_eq!(table.rows[1][1], TidyValue::Text("-9223372036854775808".to_string()));
+}

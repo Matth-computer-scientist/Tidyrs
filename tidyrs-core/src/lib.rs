@@ -29,4 +29,4 @@ pub use schema::{validate, ColumnSchema, ExpectedType, Schema, ValidationIssue, 
 pub use sniffing::{representative_lines, sample_for_sniffing, strip_utf8_bom};
 pub use table::TidyTable;
 pub use typing::{type_columns, TypedColumns};
-pub use value::{has_meaningful_leading_zero, TidyValue};
+pub use value::{has_meaningful_leading_zero, looks_like_a_whole_number, TidyValue};

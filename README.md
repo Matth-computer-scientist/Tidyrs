@@ -674,6 +674,27 @@ warning:
   row per line, reusing the exact same flattening pass JSON/YAML already
   share.
 
+A follow-up ("round 4") QA report confirmed the three PDF fixes above and
+flagged one item from the numeric-corruption round that the Excel fix
+hadn't covered: **an integer literal too big for `i64` was silently
+rounded through `f64`** in CSV and JSON — `"9999999999999999999"` (20
+digits) became `"10000000000000000000"`, and `i64::MIN` could become
+`"-9223372036854776000"` whenever it landed in a column resolved to
+`Float` alongside genuinely non-integer values. `f64` only has ~15-17
+significant decimal digits of precision, so this wasn't losing a few
+trailing digits — it was rounding the *entire* value to the nearest
+representable float, silently. Fixed in `tidyrs-core` with a
+`looks_like_a_whole_number` check (`tidyrs-core/src/value.rs`) that keeps
+a whole number as exact `Text` instead of routing it through `f64`,
+wired into both `TidyValue::infer_from_str` and the column-wide
+`convert_column` path — the same two places `has_meaningful_leading_zero`
+already guards, since it's the same class of bug triggered by magnitude
+instead of a leading zero. JSON needed a second, more fundamental fix:
+`serde_json` itself converts an oversized integer literal to a lossy
+`f64` *at parse time* (confirmed directly — `Number(1e+26)` before any of
+this project's own code runs) unless its `arbitrary_precision` feature is
+enabled, which the workspace `Cargo.toml` now does.
+
 A later, separate QA report described a PDF with a table spanning two
 pages coming out with mis-split columns (a header word like "Prix"
 reading as "column_3" + "rix") while every value still survived —

@@ -64,7 +64,12 @@ fn convert_column(guess: &ColumnTypeGuess, raw_values: &[String]) -> Vec<TidyVal
                     .parse::<i64>()
                     .map(TidyValue::Int)
                     .unwrap_or_else(|_| TidyValue::Text(trimmed.to_string())),
-                ColumnTypeGuess::Float if !crate::has_meaningful_leading_zero(trimmed) => trimmed
+                // A whole number that overflowed i64 (see
+                // looks_like_a_whole_number's docs) gets the same
+                // treatment: a column resolved to Float because most
+                // values were genuine decimals must not silently round
+                // an oversized integer outlier through f64 either.
+                ColumnTypeGuess::Float if !crate::has_meaningful_leading_zero(trimmed) && !crate::looks_like_a_whole_number(trimmed) => trimmed
                     .parse::<f64>()
                     .map(TidyValue::Float)
                     .unwrap_or_else(|_| TidyValue::Text(trimmed.to_string())),

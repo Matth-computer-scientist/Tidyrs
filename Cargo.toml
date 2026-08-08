@@ -35,6 +35,14 @@ tidyrs-parquet = { path = "tidyrs-parquet" }
 tidyrs-avro = { path = "tidyrs-avro" }
 
 serde = { version = "1", features = ["derive"] }
-serde_json = "1"
+# "arbitrary_precision": without it, serde_json's own Number type parses
+# an integer literal too big for i64/u64 straight into a lossy f64 *at
+# parse time* (confirmed directly: "99999999999999999999999999" becomes
+# Number(1e+26) before tidyrs-json's own code ever runs) — no amount of
+# post-processing on our side could recover the original digits. This
+# preserves the exact source text for oversized numbers instead. See
+# tidyrs-json/src/flatten.rs's json_scalar_to_tidy for the other half of
+# this fix.
+serde_json = { version = "1", features = ["arbitrary_precision"] }
 thiserror = "1"
 anyhow = "1"
