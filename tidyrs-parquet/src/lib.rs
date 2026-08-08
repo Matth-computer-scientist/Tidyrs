@@ -18,6 +18,60 @@
 //! `tidyrs-core`'s own `parquet` dependency, so this crate doesn't
 //! introduce a second incompatible Arrow version tree the way
 //! `tidyrs-orc`'s `orc-rust` (pinned to Arrow 58) had to.
+//!
+//! ## A known, unpatched allocation-size vulnerability in the `parquet` crate
+//!
+//! `tidyrs-parquet`'s fuzz suite (`tests/robustness.rs`, run as part of
+//! `cargo test --workspace`) intermittently crashed the whole process
+//! rather than failing a normal assertion — the same class of failure
+//! independently confirmed and fixed twice over in `tidyrs-avro` (see
+//! that crate's module docs for the full methodology this investigation
+//! reused). That crash could not be reproduced on demand here despite
+//! substantial effort: 20+ isolated reruns, one run at 2000 proptest
+//! cases instead of the usual 256, and 3 repeated full-workspace runs all
+//! came back clean. Its exact failure message from the one time it did
+//! happen wasn't captured either, so unlike the `tidyrs-avro` fixes this
+//! isn't confirmed as *the* trigger — but reading `parquet` 53.4.0's own
+//! source directly turned up a real, structurally identical bug worth
+//! recording precisely even without a reproducible case to pin it to:
+//!
+//! `parquet::file::serialized_reader`'s page-decompression path
+//! (`decode_page`, around `serialized_reader.rs:408`) reads
+//! `page_header.uncompressed_page_size` — a field decoded straight from
+//! the file's own Thrift-encoded page header, fully attacker-controlled
+//! for a corrupted/adversarial file — and allocates
+//! `Vec::with_capacity(uncompressed_size)` before decompressing into it,
+//! with no sanity bound at all. The exact same pattern as the Snappy
+//! vulnerability already fixed in `tidyrs-avro`'s dependency, and it
+//! applies to every configured page codec here (`snap` and `zstd` are
+//! both enabled in `Cargo.toml`), not just one.
+//!
+//! Two things keep this from being an equally severe finding, which is
+//! why it's documented rather than patched the way the `tidyrs-avro`
+//! issues were:
+//!
+//! - **It's bounded.** `uncompressed_page_size` is a Thrift `i32`, so the
+//!   worst case is one page requesting ~2.1GiB — a real, meaningful
+//!   memory spike, but nowhere near `tidyrs-avro`'s effectively-unbounded
+//!   case (a `HashMap::reserve` multiplied out to ~21.7GB from a
+//!   comfortably-in-range declared count).
+//! - **There's no equivalently narrow pre-check available.** The
+//!   `tidyrs-avro` OCF-header fix worked because that header is a small,
+//!   simple, fully-documented custom binary layout — cheap to duplicate
+//!   just the "read the leading count" logic for. Parquet's page headers
+//!   are encoded with Apache Thrift's compact protocol, a considerably
+//!   more general and involved serialization; a safe pre-check here
+//!   would mean hand-implementing enough of Thrift compact-protocol
+//!   decoding to reach just this one field, a meaningfully larger and
+//!   more fragile undertaking than duplicating a handful of
+//!   zigzag-varint lines — and, without a reproducible crash case to
+//!   validate it against, one this investigation chose not to build
+//!   speculatively. This — like `apache_avro`'s own still-open
+//!   general-purpose Map/Array vulnerability documented in
+//!   `tidyrs-avro`'s module docs — is a genuine open issue in the
+//!   `parquet` dependency itself, not something this crate can fully
+//!   close from the outside without disproportionate effort relative to
+//!   its (bounded) severity.
 
 use arrow_array::{Array, RecordBatch};
 use arrow_schema::DataType;
