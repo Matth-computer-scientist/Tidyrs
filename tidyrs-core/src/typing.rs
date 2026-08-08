@@ -51,15 +51,24 @@ fn convert_column(guess: &ColumnTypeGuess, raw_values: &[String]) -> Vec<TidyVal
             if trimmed.is_empty() {
                 return TidyValue::Null;
             }
+            // A leading-zero value ("00501") gets the same "doesn't
+            // actually fit the guessed type" treatment as a value that
+            // fails to parse outright — see has_meaningful_leading_zero's
+            // docs. Without this, a column resolved to Integer/Float
+            // because the *majority* of its values were safely numeric
+            // would still silently mangle the minority that weren't,
+            // exactly the corruption this whole function's docstring
+            // already promises not to do.
             match guess {
-                ColumnTypeGuess::Integer => trimmed
+                ColumnTypeGuess::Integer if !crate::has_meaningful_leading_zero(trimmed) => trimmed
                     .parse::<i64>()
                     .map(TidyValue::Int)
                     .unwrap_or_else(|_| TidyValue::Text(trimmed.to_string())),
-                ColumnTypeGuess::Float => trimmed
+                ColumnTypeGuess::Float if !crate::has_meaningful_leading_zero(trimmed) => trimmed
                     .parse::<f64>()
                     .map(TidyValue::Float)
                     .unwrap_or_else(|_| TidyValue::Text(trimmed.to_string())),
+                ColumnTypeGuess::Integer | ColumnTypeGuess::Float => TidyValue::Text(trimmed.to_string()),
                 ColumnTypeGuess::Boolean => match trimmed.to_ascii_lowercase().as_str() {
                     "true" | "yes" => TidyValue::Bool(true),
                     "false" | "no" => TidyValue::Bool(false),

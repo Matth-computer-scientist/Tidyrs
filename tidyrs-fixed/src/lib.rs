@@ -173,7 +173,7 @@ impl TidyParser for FixedWidthParser {
 
     fn parse(&self, bytes: &[u8], filename: &str, options: &ParseOptions) -> TidyResult<ParseOutcome> {
         let mut report = CleaningReport::new(filename, self.format_name());
-        let text = String::from_utf8_lossy(bytes).into_owned();
+        let text = String::from_utf8_lossy(tidyrs_core::strip_utf8_bom(bytes)).into_owned();
         let all_lines: Vec<&str> = text.lines().filter(|l| !l.trim().is_empty()).collect();
         if all_lines.is_empty() {
             return Err(TidyError::Parse {

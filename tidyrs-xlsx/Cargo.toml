@@ -8,7 +8,7 @@ description = "Excel (.xlsx/.xls) parser for tidyloom: merged cells, junk header
 
 [dependencies]
 tidyrs-core = { workspace = true }
-calamine = "0.26"
+calamine = { version = "0.26", features = ["dates"] }
 
 [dev-dependencies]
 rust_xlsxwriter = "0.96"

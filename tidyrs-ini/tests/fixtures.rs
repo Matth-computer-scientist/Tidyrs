@@ -15,6 +15,53 @@ fn col<'a>(headers: &[String], row: &'a [TidyValue], name: &str) -> &'a TidyValu
 }
 
 #[test]
+fn a_trailing_comment_after_a_quoted_value_is_stripped() {
+    // Regression (found via external QA testing): a trailing `; comment`
+    // used to become part of the value instead of being stripped —
+    // `name = "Mon Application"  ; commentaire` came out as
+    // `"Mon Application"  ; commentaire` (quotes and all), not
+    // `Mon Application`.
+    let bytes = b"name = \"Mon Application\"  ; commentaire en fin de ligne\nversion = 1.0\n".to_vec();
+    let parser = IniParser::new();
+    let outcome = parser.parse(&bytes, "app.ini", &ParseOptions::new()).unwrap();
+    let table = &outcome.tables[0];
+
+    assert_eq!(
+        col(&table.headers, &table.rows[0], "name"),
+        &TidyValue::Text("Mon Application".to_string())
+    );
+}
+
+#[test]
+fn a_comment_marker_without_preceding_whitespace_stays_part_of_the_value() {
+    // The trailing-comment strip must not fire on a marker that's clearly
+    // part of the value itself (a URL fragment, a password) — only a
+    // marker preceded by whitespace is treated as a real comment.
+    let bytes = b"page_url = http://example.com/path#section\n".to_vec();
+    let parser = IniParser::new();
+    let outcome = parser.parse(&bytes, "app.ini", &ParseOptions::new()).unwrap();
+    let table = &outcome.tables[0];
+
+    assert_eq!(
+        col(&table.headers, &table.rows[0], "page_url"),
+        &TidyValue::Text("http://example.com/path#section".to_string())
+    );
+}
+
+#[test]
+fn a_comment_marker_inside_quotes_stays_part_of_the_value() {
+    let bytes = b"note = \"call me at 555-1234 ; ask for Bob\"\n".to_vec();
+    let parser = IniParser::new();
+    let outcome = parser.parse(&bytes, "app.ini", &ParseOptions::new()).unwrap();
+    let table = &outcome.tables[0];
+
+    assert_eq!(
+        col(&table.headers, &table.rows[0], "note"),
+        &TidyValue::Text("call me at 555-1234 ; ask for Bob".to_string())
+    );
+}
+
+#[test]
 fn sectioned_ini_produces_one_row_per_section() {
     let bytes = fixture("ini", "database.ini");
     let parser = IniParser::new();

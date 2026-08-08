@@ -33,12 +33,34 @@ impl AmbiguityResolver for RuleBasedResolver {
         }
         let total = non_empty.len() as f32;
 
-        let ints = non_empty.iter().filter(|s| s.trim().parse::<i64>().is_ok()).count() as f32 / total;
+        // A leading-zero value ("00501", "007") is excluded from both
+        // counts below, not just the Integer one: `str::parse::<f64>`
+        // accepts "00501" just as readily as `i64` does (-> 501.0),
+        // losing the same meaningful leading zero either way. A column
+        // that's mostly postal codes with a couple of genuinely-numeric
+        // values mixed in should fall through to Text (or the ambiguous-
+        // column per-cell fallback) rather than have the whole column
+        // confidently committed to a numeric type that mangles most of it.
+        let ints = non_empty
+            .iter()
+            .filter(|s| {
+                let t = s.trim();
+                !crate::has_meaningful_leading_zero(t) && t.parse::<i64>().is_ok()
+            })
+            .count() as f32
+            / total;
         if ints > 0.9 {
             return (ColumnTypeGuess::Integer, ints);
         }
 
-        let floats = non_empty.iter().filter(|s| s.trim().parse::<f64>().is_ok()).count() as f32 / total;
+        let floats = non_empty
+            .iter()
+            .filter(|s| {
+                let t = s.trim();
+                !crate::has_meaningful_leading_zero(t) && t.parse::<f64>().is_ok()
+            })
+            .count() as f32
+            / total;
         if floats > 0.9 {
             return (ColumnTypeGuess::Float, floats);
         }

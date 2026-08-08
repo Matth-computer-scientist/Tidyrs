@@ -42,6 +42,7 @@ impl Default for CsvParser {
 /// it isn't already valid UTF-8. Returns the decoded text and a label for
 /// the encoding that was used, for reporting.
 pub(crate) fn decode_bytes(bytes: &[u8]) -> (String, &'static str) {
+    let bytes = tidyrs_core::strip_utf8_bom(bytes);
     if let Ok(s) = std::str::from_utf8(bytes) {
         return (s.to_string(), "UTF-8");
     }

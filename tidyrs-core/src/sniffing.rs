@@ -17,6 +17,19 @@
 /// candidate format during detection, not on the hot parsing path.
 const SAMPLE_LIMIT: usize = 12_288;
 
+/// Strips a leading UTF-8 byte-order mark (`EF BB BF`) if present. A BOM
+/// is valid UTF-8 (it decodes to U+FEFF) so `str::from_utf8`/
+/// `from_utf8_lossy` never reject it — left in place, it silently glues
+/// itself onto whatever the first character of the file "means" to a
+/// parser (a CSV/INI header's first name, a fixed-width file's first
+/// column), which is a real correctness bug found via external QA
+/// testing, not just a display quirk. Every text-based parser here should
+/// call this before decoding, the same way binary formats check a magic
+/// header before trusting their own byte offsets.
+pub fn strip_utf8_bom(bytes: &[u8]) -> &[u8] {
+    bytes.strip_prefix(&[0xEF, 0xBB, 0xBF]).unwrap_or(bytes)
+}
+
 /// Returns up to [`SAMPLE_LIMIT`] bytes representative of `bytes`: the
 /// whole input if it's already small, otherwise a prefix, a middle
 /// chunk, and a suffix chunk concatenated together. Chunk boundaries can

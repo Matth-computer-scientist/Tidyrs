@@ -74,6 +74,12 @@ fn fill_prefix<R: Read>(input: &mut R, buf: &mut Vec<u8>) -> std::io::Result<()>
 pub fn stream_clean_csv<R: Read, W: Write>(mut input: R, output: W, filename: &str, options: &ParseOptions) -> TidyResult<CleaningReport> {
     let mut prefix = Vec::new();
     fill_prefix(&mut input, &mut prefix)?;
+    // A BOM is valid UTF-8 (decodes to U+FEFF) so it wouldn't fail the
+    // is_err() check below and would otherwise glue itself onto the first
+    // header name — same fix as the in-memory path's decode_bytes.
+    if tidyrs_core::strip_utf8_bom(&prefix).len() != prefix.len() {
+        prefix = tidyrs_core::strip_utf8_bom(&prefix).to_vec();
+    }
 
     if std::str::from_utf8(&prefix).is_err() {
         return stream_clean_csv_non_utf8_fallback(prefix, input, output, filename, options);

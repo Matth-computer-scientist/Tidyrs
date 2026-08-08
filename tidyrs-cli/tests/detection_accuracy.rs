@@ -50,6 +50,7 @@ const CASES: &[(&str, &str)] = &[
     ("yaml/single_object.yaml", "json"),
     ("yaml/wrapped_items.yaml", "json"),
     ("yaml/inconsistent_types.yaml", "json"),
+    ("ndjson/orders.ndjson", "json"), // JsonXmlParser handles JSON/XML/YAML/NDJSON
     ("ini/database.ini", "ini"),
     ("ini/simple.ini", "ini"),
     ("env/app.env", "ini"), // IniParser handles both .ini and .env

@@ -1,9 +1,9 @@
 //! INI / `.env` key-value config parsing for tidyloom.
 //!
 //! Two real-world shapes, both handled by the same grammar (`key = value`
-//! lines, `[section]` headers, `#`/`;` full-line comments, an optional
-//! `export ` prefix on any line for `.env` files that source directly into
-//! a shell):
+//! lines, `[section]` headers, `#`/`;` full-line *and* trailing comments
+//! (see [`strip_trailing_comment`]), an optional `export ` prefix on any
+//! line for `.env` files that source directly into a shell):
 //!
 //! - **Sectioned** (a classic `.ini`, or a multi-profile file like an AWS
 //!   `credentials` file with `[default]`/`[work]` blocks): each section
@@ -106,6 +106,37 @@ fn unquote(value: &str) -> String {
     value.to_string()
 }
 
+/// Strips a trailing `; comment` or `# comment` from a raw value — the
+/// classic INI convention (found missing via external QA testing: it
+/// used to be supported nowhere, so a comment marker just became part of
+/// the value). A marker only ends the value when it's preceded by
+/// whitespace *and* isn't inside a quoted string — `key=http://x#frag`
+/// stays whole (no preceding whitespace before `#`), and
+/// `key="a; b" ; real comment` only strips the real trailing one, not the
+/// `;` inside the quotes. This is a plain scan, not a parser — same
+/// "conservative, don't guess" bias `is_kv_line` already uses elsewhere
+/// in this crate.
+fn strip_trailing_comment(value: &str) -> &str {
+    let bytes = value.as_bytes();
+    let mut in_quotes: Option<u8> = None;
+    let mut prev_was_space = false;
+    for (i, &b) in bytes.iter().enumerate() {
+        match in_quotes {
+            Some(q) if b == q => in_quotes = None,
+            Some(_) => {}
+            None => {
+                if b == b'"' || b == b'\'' {
+                    in_quotes = Some(b);
+                } else if (b == b';' || b == b'#') && prev_was_space {
+                    return value[..i].trim_end();
+                }
+            }
+        }
+        prev_was_space = b == b' ' || b == b'\t';
+    }
+    value
+}
+
 impl TidyParser for IniParser {
     fn format_name(&self) -> &'static str {
         "ini"
@@ -138,7 +169,7 @@ impl TidyParser for IniParser {
     }
 
     fn parse(&self, bytes: &[u8], filename: &str, _options: &ParseOptions) -> TidyResult<ParseOutcome> {
-        let text = String::from_utf8_lossy(bytes).into_owned();
+        let text = String::from_utf8_lossy(tidyrs_core::strip_utf8_bom(bytes)).into_owned();
 
         let mut buckets: Vec<Bucket> = Vec::new();
         let mut index_of: std::collections::HashMap<String, usize> = std::collections::HashMap::new();
@@ -172,7 +203,7 @@ impl TidyParser for IniParser {
                 continue;
             };
             let key = content[..eq_idx].trim().to_string();
-            let value = unquote(content[eq_idx + 1..].trim());
+            let value = unquote(strip_trailing_comment(content[eq_idx + 1..].trim()));
             if key.is_empty() {
                 malformed += 1;
                 continue;

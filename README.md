@@ -76,7 +76,7 @@ drive.
 
 ## Key features
 
-- **One CLI, eleven input formats** — CSV, Excel, SQLite, JSON/XML/YAML,
+- **One CLI, twelve input formats** — CSV, Excel, SQLite, JSON/XML/YAML/NDJSON,
   INI/.env, fixed-width/log text, and (experimentally) ORC, Parquet, Avro,
   and PDF tables, auto-detected from file *content*, not just extension.
 - **Auditable, not a black box** — every run produces a `CleaningReport`
@@ -113,7 +113,7 @@ drive.
 | SQLite | **Stable** | One `TidyTable` per user table (`--table` to restrict to one), read with SQLite's own native column types (no re-inference needed, unlike text formats). Detection keys off SQLite's fixed 16-byte file-header magic string — no heuristic scoring involved, unlike every other format here |
 | Fixed-width / logs | **Stable** | Whitespace-alignment column inference, or plain whitespace-token splitting for log lines |
 | INI / .env | **Stable** | `[section]` blocks become one row each (a `credentials`-style multi-profile file becomes genuinely tabular data), or one row for a flat file with no sections. Handles `.env`'s `export KEY=VALUE` and quoted values. Content-only detection requires the `[section]`/`key=value` grammar on most sampled lines, not just "the file contains an `=`" |
-| JSON / XML / YAML | **Experimental** | Parsing is solid (YAML is parsed straight into the same value tree as JSON, so it shares one flattening pass); flattening uses a simple, documented dot-notation + array-join strategy (with an opt-in `explode` mode for arrays of objects), not a fully general one. YAML content-only detection uses a `key:`/`- item` line-shape scan plus a real parse-to-mapping/sequence check, since YAML (unlike JSON/XML) has no unique leading character to key off of |
+| JSON / XML / YAML / NDJSON | **Experimental** | Parsing is solid (YAML and NDJSON are both parsed straight into the same value tree as JSON, so they share one flattening pass); flattening uses a simple, documented dot-notation + array-join strategy (with an opt-in `explode` mode for arrays of objects), not a fully general one. YAML content-only detection uses a `key:`/`- item` line-shape scan plus a real parse-to-mapping/sequence check, since YAML (unlike JSON/XML) has no unique leading character to key off of. NDJSON detection requires every sampled line to independently parse as its own complete JSON object, scored to clearly outrank CSV (whose delimiter-consistency check would otherwise treat the comma inside each line's JSON as a real column separator) |
 | ORC | **Experimental** | Boolean/integer/float columns get native `TidyValue` types; Date/Timestamp/Decimal and nested Struct/List/Map columns render as Arrow's own display text rather than a fully typed conversion or dot-notation flattening. Detection keys off ORC's fixed magic trailer at the *end* of the file (ORC's footer is written last, unlike every other magic-byte format here). Full type/compression coverage (including Snappy) via `orc-rust`, chosen over the only other ORC crate on crates.io for licensing (that one's non-commercial-only license is incompatible with this project's) and real feature gaps (no floats, no dates, no Snappy) |
 | Parquet (reading) | **Experimental** | Same native-type-where-unambiguous policy as ORC (they share the same Arrow-based conversion approach), pinned to the same Arrow major version tidyloom's own Parquet *writer* already uses. Writing Parquet (`--output-format parquet`) remains fully typed and stable — this only affects reading an *existing* Parquet file as input |
 | Avro | **Experimental** | Reads Object Container Files via the official `apache-avro` crate. Union-wrapped optional fields (Avro's standard `["null", T]` encoding) are transparently unwrapped rather than surfaced as a wrapper; logical date/timestamp types convert to real calendar values. Nested Record/Array/Map and Decimal/Duration fields render as Rust debug text, the same documented simplification ORC/Parquet use for their own rich schemas |
@@ -564,6 +564,71 @@ across several previously-passing fixtures — a clear case of a fix
 causing more harm than the bug it targeted. Left as a known, bounded
 limitation instead (the title survives as extra ambiguous columns, not
 lost data — see `title_with_no_ragged_data.pdf` and its regression test).
+
+### Silent numeric/encoding corruption fixed via external QA testing
+
+A further QA round specifically targeted whether *values survive
+unchanged*, not just whether structure/detection was right, and found
+several real, silent corruption bugs — the most serious class of bug this
+project has shipped a fix for, since none of them produced an error or
+warning:
+
+- **A leading zero was silently stripped** ("00501" → 501, "007" → 7) —
+  in CSV, fixed-width, and PDF's shared `TidyValue::infer_from_str` path,
+  *and* independently in the column-wide `AmbiguityResolver` typing path
+  (a column of mostly-numeric postal codes could get confidently
+  committed to `Integer` and then have every value's leading zero
+  stripped during conversion). Real, silent loss of a postal code, phone
+  extension, or padded ID's actual value, with nothing anywhere in the
+  report suggesting it happened. Fixed with a single shared
+  `has_meaningful_leading_zero` check (`tidyrs-core/src/value.rs`) wired
+  into both places a raw string gets parsed as a number.
+- **Excel silently coerced across cell types.** `cell_to_tidy` used to
+  call calamine's `as_i64()`/`as_f64()`, which — unlike the exact
+  `get_int()`/`get_float()`/`get_string()` accessors it's built on —
+  *coerce* rather than report a cell's real stored type: a column
+  explicitly formatted as Text in the source spreadsheet ("007") got
+  silently `str::parse`d as a number, and a cell holding `1e300` got
+  silently cast to `i64` via Rust's *saturating* `as` operator, becoming
+  `9223372036854775807` (`i64::MAX`) — not a rounding error, a completely
+  different, wrong number. Fixed by switching to the exact accessors.
+  Excel dates also used to read as their raw, meaningless serial number
+  (`46027`) because calamine's `dates` cargo feature was never enabled —
+  now on, with a `get_datetime()` branch producing a real calendar value.
+- **A leading UTF-8 byte-order mark polluted the first field/key** in
+  every text-based parser (CSV, fixed-width, JSON/XML/YAML, INI/.env): a
+  BOM is valid UTF-8 (decodes to U+FEFF) so it survives
+  `from_utf8`/`from_utf8_lossy` unchanged, and isn't whitespace so
+  `trim()` doesn't remove it either — it glued itself onto a CSV header's
+  first column name, or broke JSON's own leading-`{`/`[` detection
+  outright. Fixed with a shared `strip_utf8_bom` (`tidyrs-core/src/sniffing.rs`)
+  applied at the start of every parser's decode step.
+- **INI/.env never stripped a trailing `; comment`**, only a full-line
+  one — `name = "My App"  ; a comment` kept the comment (and the quotes)
+  as part of the value. Fixed with a quote-aware trailing-comment scan
+  (a marker only ends the value when preceded by whitespace *and* isn't
+  inside a quoted string, so `key=http://x#frag` and `key="a; b"` are
+  both left alone).
+- **NDJSON (`.ndjson`/`.jsonl`) wasn't recognized as a format at all** —
+  a comma inside each line's JSON reads as a perfectly consistent CSV
+  "delimiter", so it silently lost to `tidyrs-csv`'s detection and
+  produced garbage (every line split wherever its first comma landed).
+  Rather than just reject it more loudly, `tidyrs-json` now genuinely
+  supports it: each line parses as its own independent JSON value, one
+  row per line, reusing the exact same flattening pass JSON/YAML already
+  share.
+
+One report from this round turned out **not** to be a bug: a formula
+cell reading back blank instead of evaluated, and a workbook's `0.1+0.2`
+column reading as `0`. Both traced to the specific *test fixture*
+generator (`rust_xlsxwriter`, used for this project's own synthetic test
+files) writing a formula with no cached result — calamine, like every
+other production Excel reader, reads a formula's cached value rather than
+implementing a calculation engine, and a real Excel-saved file always has
+one. Confirmed by writing an equivalent probe file and observing calamine
+correctly return an empty cell for the uncached formula, not garbage —
+the reader is doing exactly what every other spreadsheet tool does with
+this input.
 
 ### Real-world scenario tests
 

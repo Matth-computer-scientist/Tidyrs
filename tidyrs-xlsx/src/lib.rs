@@ -36,6 +36,26 @@ impl Default for XlsxParser {
     }
 }
 
+/// Converts one cell using calamine's *exact*, non-coercive accessors
+/// (`get_bool`/`get_int`/`get_float`/`get_string`, each `Some` only for
+/// its own matching `Data` variant) rather than `as_i64`/`as_f64`, which
+/// silently coerce across types — found via external QA testing to be
+/// real, silent data corruption on two different real inputs:
+/// - `Data::String("007").as_i64()` returns `Some(7)` (calamine happily
+///   `str::parse`s the string), so a column explicitly formatted as Text
+///   in the source spreadsheet — postal codes, padded IDs, anything
+///   where the leading zero is the whole point — lost that formatting
+///   with no warning. `get_string()` keeps the real cell type in view, so
+///   the value goes through `TidyValue::infer_from_str` (leading-zero-
+///   aware, see `has_meaningful_leading_zero`) instead of calamine's
+///   blind coercion.
+/// - `Data::Float(v).as_i64()` returns `Some(v as i64)` — an ordinary
+///   Rust `as` cast, which *saturates* rather than erroring on overflow.
+///   A cell holding `1e300` therefore silently became `i64::MAX`
+///   (`9223372036854775807`): not a rounding error, a completely
+///   different, wrong number with no signal anything went wrong.
+///   `get_float()` only ever matches `Data::Float`, never attempting an
+///   int cast at all.
 fn cell_to_tidy(cell: &Data) -> TidyValue {
     if cell.is_empty() {
         return TidyValue::Null;
@@ -43,11 +63,21 @@ fn cell_to_tidy(cell: &Data) -> TidyValue {
     if let Some(b) = cell.get_bool() {
         return TidyValue::Bool(b);
     }
-    if let Some(i) = cell.as_i64() {
+    // A cell whose number format marks it as a date (checked before the
+    // plain-numeric branches below, since a date is stored as an ordinary
+    // float serial number under the hood) — reads as a real calendar
+    // date/time instead of the raw, meaningless serial ("46027").
+    if let Some(dt) = cell.get_datetime().and_then(|d| d.as_datetime()) {
+        return TidyValue::Text(dt.to_string());
+    }
+    if let Some(i) = cell.get_int() {
         return TidyValue::Int(i);
     }
-    if let Some(f) = cell.as_f64() {
+    if let Some(f) = cell.get_float() {
         return TidyValue::Float(f);
+    }
+    if let Some(s) = cell.get_string() {
+        return TidyValue::infer_from_str(s.trim());
     }
     TidyValue::Text(cell.to_string().trim().to_string())
 }

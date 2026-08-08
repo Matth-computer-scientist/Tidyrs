@@ -15,6 +15,36 @@ fn col<'a>(headers: &[String], row: &'a [TidyValue], name: &str) -> &'a TidyValu
 }
 
 #[test]
+fn ndjson_is_read_as_one_row_per_line_not_misdetected_as_csv() {
+    // Regression (found via external QA testing): an .ndjson file used to
+    // get claimed by tidyrs-csv (a comma inside each line's JSON reads as
+    // a perfectly consistent CSV "delimiter"), producing garbage — every
+    // line split wherever its first comma happened to land, silently, no
+    // error anywhere in the pipeline.
+    let bytes = fixture("ndjson", "orders.ndjson");
+    let parser = JsonXmlParser::new();
+    let outcome = parser.parse(&bytes, "orders.ndjson", &ParseOptions::new()).unwrap();
+    let table = &outcome.tables[0];
+
+    assert_eq!(table.rows.len(), 3);
+    assert_eq!(
+        col(&table.headers, &table.rows[0], "customer"),
+        &TidyValue::Text("Alice Martin".to_string())
+    );
+    assert_eq!(col(&table.headers, &table.rows[1], "total"), &TidyValue::Float(17.0));
+    assert_eq!(outcome.report.detected_format, "ndjson");
+}
+
+#[test]
+fn ndjson_is_detected_from_content_alone_over_csv() {
+    let bytes = fixture("ndjson", "orders.ndjson");
+    let parser = JsonXmlParser::new();
+    // No filename hint at all — content-only detection must still win
+    // against CSV's own delimiter-consistency scoring.
+    assert!(parser.sniff(&bytes, None) > 0.6);
+}
+
+#[test]
 fn a_key_that_is_sometimes_scalar_array_or_object_does_not_crash_parsing() {
     let bytes = fixture("json", "inconsistent_types.json");
     let parser = JsonXmlParser::new();

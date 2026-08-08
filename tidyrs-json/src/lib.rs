@@ -41,6 +41,31 @@ enum Kind {
     Json,
     Xml,
     Yaml,
+    Ndjson,
+}
+
+/// A plain scan for newline-delimited JSON: each non-empty line an
+/// independent, complete JSON object. Found missing entirely via
+/// external QA testing — an `.ndjson`/`.jsonl` file used to get
+/// misclaimed by CSV (a comma inside each line's JSON is a perfectly
+/// consistent "delimiter" from CSV's point of view), producing garbage:
+/// every line split wherever its first comma happened to land, with no
+/// error or warning that anything was wrong.
+///
+/// Requires every sampled line to *start* with `{` (not just parse as
+/// *some* valid JSON — a single word on its own line, `hello`, is
+/// already valid JSON as a bare string literal, which would make this
+/// heuristic fire on ordinary line-oriented text otherwise) and parse
+/// successfully as a complete JSON value on its own.
+fn looks_like_ndjson_content(text: &str) -> bool {
+    let lines = tidyrs_core::representative_lines(text, 20);
+    if lines.len() < 2 {
+        return false;
+    }
+    lines.iter().all(|l| {
+        let t = l.trim();
+        t.starts_with('{') && serde_json::from_str::<Value>(t).is_ok()
+    })
 }
 
 /// A plain scan for `key: value` shape, not a YAML parser — a leading
@@ -115,8 +140,11 @@ fn detect_kind(bytes: &[u8], filename: Option<&str>) -> Option<Kind> {
         if lower.ends_with(".yaml") || lower.ends_with(".yml") {
             return Some(Kind::Yaml);
         }
+        if lower.ends_with(".ndjson") || lower.ends_with(".jsonl") {
+            return Some(Kind::Ndjson);
+        }
     }
-    let text = String::from_utf8_lossy(bytes);
+    let text = String::from_utf8_lossy(tidyrs_core::strip_utf8_bom(bytes));
     match text.trim_start().chars().next() {
         // A leading `{`/`[` alone isn't proof of JSON — an INI file's
         // `[section]` header starts with `[` too, and used to get
@@ -124,10 +152,16 @@ fn detect_kind(bytes: &[u8], filename: Option<&str>) -> Option<Kind> {
         // (JSON's own parse error, never reaching the parser that could
         // actually have handled it). Requiring an actual successful parse
         // is the same validate-before-claiming discipline already used
-        // for YAML below.
+        // for YAML below. This also naturally falls through to the NDJSON
+        // check below rather than misfiring here: several independent
+        // top-level JSON values (one per line) is not itself valid JSON,
+        // so the whole-text parse attempt fails as intended.
         Some('{') | Some('[') if serde_json::from_str::<Value>(&text).is_ok() => return Some(Kind::Json),
         Some('<') => return Some(Kind::Xml),
         _ => {}
+    }
+    if looks_like_ndjson_content(&text) {
+        return Some(Kind::Ndjson);
     }
     if looks_like_yaml_content(&text) {
         return Some(Kind::Yaml);
@@ -180,6 +214,23 @@ impl TidyParser for JsonXmlParser {
                     0.55
                 }
             }
+            Some(Kind::Ndjson) => {
+                let has_ndjson_extension = filename.is_some_and(|n| {
+                    let lower = n.to_ascii_lowercase();
+                    lower.ends_with(".ndjson") || lower.ends_with(".jsonl")
+                });
+                if has_ndjson_extension {
+                    0.7
+                } else {
+                    // Every sampled line independently parsing as a JSON
+                    // object is a much stronger signal than YAML's fuzzy
+                    // line-shape scan gets to rely on, and needs to
+                    // clearly beat CSV's own delimiter-consistency score
+                    // (a comma inside each line's JSON reads as a
+                    // perfectly consistent CSV "column" otherwise).
+                    0.65
+                }
+            }
             None => 0.0,
         }
     }
@@ -194,14 +245,15 @@ impl TidyParser for JsonXmlParser {
             Kind::Json => "json",
             Kind::Xml => "xml",
             Kind::Yaml => "yaml",
+            Kind::Ndjson => "ndjson",
         };
         let mut report = CleaningReport::new(filename, format_label);
         report.warning(
-            "json/xml/yaml support is experimental in this version: flattening uses a simple documented strategy, not a fully general one (see README)"
+            "json/xml/yaml/ndjson support is experimental in this version: flattening uses a simple documented strategy, not a fully general one (see README)"
                 .to_string(),
         );
 
-        let text = String::from_utf8_lossy(bytes).into_owned();
+        let text = String::from_utf8_lossy(tidyrs_core::strip_utf8_bom(bytes)).into_owned();
         let root: Value = match kind {
             Kind::Json => serde_json::from_str(&text).map_err(|e| TidyError::Parse {
                 format: self.format_name().into(),
@@ -215,6 +267,17 @@ impl TidyParser for JsonXmlParser {
                 format: self.format_name().into(),
                 message: format!("invalid YAML: {e}"),
             })?,
+            // Each non-empty line is its own complete, independent JSON
+            // value — never a single top-level document — so this builds
+            // the array directly rather than attempting one whole-text
+            // parse the way Kind::Json does.
+            Kind::Ndjson => {
+                let values: Result<Vec<Value>, _> = text.lines().map(str::trim).filter(|l| !l.is_empty()).map(serde_json::from_str).collect();
+                Value::Array(values.map_err(|e| TidyError::Parse {
+                    format: self.format_name().into(),
+                    message: format!("invalid NDJSON line: {e}"),
+                })?)
+            }
         };
 
         let (records, wrapper_key) = extract_records(root);

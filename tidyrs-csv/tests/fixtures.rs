@@ -184,3 +184,41 @@ fn non_utf8_encoding_is_detected_and_decoded() {
     assert_eq!(table.rows[0][0], TidyValue::Text("René".to_string()));
     assert!(outcome.report.notes.iter().any(|n| n.message.contains("not valid UTF-8")));
 }
+
+#[test]
+fn a_leading_utf8_bom_does_not_pollute_the_first_header_name() {
+    // Regression (found via external QA testing): a BOM is valid UTF-8
+    // (decodes to U+FEFF), so it survived str::from_utf8 unchanged and
+    // glued itself onto the first header's name — "\u{FEFF}id" instead of
+    // "id" — breaking any downstream lookup by that column's real name.
+    // Real-world source: Excel's own "CSV UTF-8" save option always
+    // writes one.
+    let mut bytes = vec![0xEF, 0xBB, 0xBF];
+    bytes.extend_from_slice(b"id,name\n1,Alice\n");
+    let parser = CsvParser::new();
+    let outcome = parser.parse(&bytes, "bom.csv", &ParseOptions::new()).unwrap();
+    let table = &outcome.tables[0];
+
+    assert_eq!(table.headers, vec!["id", "name"]);
+    assert_eq!(table.rows[0][0], TidyValue::Int(1));
+}
+
+#[test]
+fn a_postal_code_with_a_leading_zero_is_not_silently_converted_to_a_number() {
+    // Regression (found via external QA testing): "00501" used to become
+    // 501 with no warning — real, silent data corruption on identifiers
+    // that are never supposed to be treated as arithmetic numbers.
+    let bytes = b"zip,city\n00501,Holtsville\n02134,Boston\n06390,Fishers Island\n00544,Holtsville\n".to_vec();
+    let parser = CsvParser::new();
+    let outcome = parser.parse(&bytes, "zips.csv", &ParseOptions::new()).unwrap();
+    let table = &outcome.tables[0];
+
+    for (i, expected) in ["00501", "02134", "06390", "00544"].iter().enumerate() {
+        assert_eq!(
+            table.rows[i][0],
+            TidyValue::Text(expected.to_string()),
+            "leading zero must survive in row {i}: {:?}",
+            table.rows[i]
+        );
+    }
+}
