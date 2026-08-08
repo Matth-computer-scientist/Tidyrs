@@ -898,32 +898,12 @@ are checked against an independently-verified source of truth, not just
 ## Contributing
 
 This is an early-stage project — issues and PRs are welcome, especially
-around:
-
-- Real-world (anonymized) fixture files that expose parsing edge cases,
-  for any format.
-- Widening the "stable" set (JSON/XML flattening, PDF extraction) with
-  more test coverage behind each change.
-- New `TidyParser` implementations for other formats (Avro, ORC, INI,
-  Parquet-as-input, ...) — the trait boundary exists specifically so this
-  doesn't require touching `tidyrs-core`.
-
-Before opening a PR: `cargo test --workspace` should pass, and new
-behavior should come with a fixture + test the same way existing formats
-do (see any `tests/fixtures.rs` for the pattern). Robustness matters here
-more than in most projects — if you touch a parser, run its
-`tests/robustness.rs` suite (`cargo test -p <crate> --test robustness`)
-before and after. `cargo fmt --all -- --check` and `cargo clippy
---workspace --all-targets -- -D warnings` must both be clean — CI enforces
-this on every push/PR (see the badge above and `.github/workflows/ci.yml`).
-
-### Releasing (maintainers)
-
-Pushing a tag matching `v*.*.*` (e.g. `v0.1.0`) triggers
-`.github/workflows/release.yml`, which builds `tidyloom` for
-Linux/macOS (x86_64 + aarch64)/Windows and attaches the binaries to a
-GitHub Release. Not published to crates.io yet — see
-[Installation](#installation).
+around real-world fixture files that expose parsing edge cases, widening
+the "stable" set with more test coverage, and new `TidyParser`
+implementations for other formats. See [CONTRIBUTING.md](CONTRIBUTING.md)
+for the full guide: what to test before opening a PR, how to regenerate
+binary fixtures, commit style, and a walkthrough of adding a new format.
+Participation is governed by the [Code of Conduct](CODE_OF_CONDUCT.md).
 
 ## License
 
