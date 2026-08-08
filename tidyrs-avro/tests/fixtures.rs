@@ -114,6 +114,87 @@ fn a_nested_record_field_renders_as_readable_text_instead_of_erroring() {
 }
 
 #[test]
+fn a_schema_declaring_a_multi_gigabyte_fixed_field_is_rejected_cleanly() {
+    // Regression (found via proptest fuzzing, confirmed by reading
+    // apache_avro 0.21.0's source directly): a `fixed` schema's `size`
+    // comes straight from the file's own embedded schema JSON and is
+    // used as `vec![0u8; size]` the instant a value of that type is
+    // decoded — the one length in the whole crate that bypasses its own
+    // internal `safe_len` allocation guard (every string/bytes/array/map
+    // length funnels through it; this one alone doesn't). An adversarial
+    // file declaring an implausible size used to crash the whole process
+    // outright ("memory allocation of N bytes failed" — an allocator
+    // abort, not a panic, so `catch_unwind` cannot save it). This schema
+    // never needs to encode a single real value to trigger it: the crash
+    // is in `Reader::writer_schema()`-adjacent decoding, not something
+    // that depends on `flush()`ing any actual records — see
+    // `find_oversized_fixed_type` in src/lib.rs for the fix, which checks
+    // the writer schema before the vulnerable decode path is ever reached.
+    use apache_avro::{Schema, Writer};
+
+    let schema_json = r#"{
+        "type": "record",
+        "name": "Malicious",
+        "fields": [
+            {"name": "payload", "type": {"type": "fixed", "name": "HugeBlob", "size": 21743271952}}
+        ]
+    }"#;
+    let schema = Schema::parse_str(schema_json).unwrap();
+    let mut buffer = Vec::new();
+    {
+        let writer = Writer::new(&schema, &mut buffer);
+        // Flushing an empty writer still emits a complete, valid OCF
+        // header (magic + metadata map, including the schema above) —
+        // exactly what `find_oversized_fixed_type` inspects. No record
+        // ever needs to be appended; the vulnerability is in the schema
+        // declaration itself, not in decoding an actual 21GB value.
+        writer.into_inner().unwrap();
+    }
+
+    let parser = AvroParser::new();
+    let result = parser.parse(&buffer, "malicious.avro", &ParseOptions::new());
+
+    let message = match result {
+        Err(e) => e.to_string(),
+        Ok(_) => panic!("a file declaring an implausible fixed-field size must be rejected, not accepted or crash the process"),
+    };
+    assert!(
+        message.contains("fixed") && message.contains("21743271952"),
+        "expected the error to name the offending field, got: {message}"
+    );
+}
+
+#[test]
+fn a_header_declaring_an_implausible_metadata_entry_count_is_rejected_cleanly() {
+    // Regression: the exact input the fuzz suite actually found (captured
+    // directly from a crashing proptest run, not reconstructed from
+    // theory). Just the magic bytes plus a handful of adversarial bytes —
+    // no valid schema JSON, no real data — is enough: the OCF header's
+    // own metadata is Avro-encoded as `map<bytes>`, and decoding it reads
+    // a declared entry count that apache_avro's `safe_len` validates as
+    // if it were a *byte length* (comfortably under its 512MiB default)
+    // but is then used directly as an *element count* for
+    // `HashMap::reserve` — where each `(String, Value)` entry is closer
+    // to 100+ bytes. A "safely small" count multiplies out to a real
+    // ~21.7GB allocation attempt, aborting the process before
+    // `catch_unwind` (which only catches panics, not allocator failures)
+    // ever gets a chance. See `header_metadata_count_is_plausible` in
+    // src/lib.rs for the fix and the module docs for the full mechanism.
+    let bytes: Vec<u8> = vec![79, 98, 106, 1, 165, 238, 164, 126, 123, 109, 61, 2];
+    let parser = AvroParser::new();
+    let result = parser.parse(&bytes, "adversarial.avro", &ParseOptions::new());
+
+    let message = match result {
+        Err(e) => e.to_string(),
+        Ok(_) => panic!("a header declaring an implausible metadata entry count must be rejected, not accepted or crash the process"),
+    };
+    assert!(
+        message.contains("metadata"),
+        "expected the error to describe the implausible header, got: {message}"
+    );
+}
+
+#[test]
 fn sniff_recognizes_avro_files_from_content_alone() {
     let bytes = fixture("users.avro");
     let parser = AvroParser::new();

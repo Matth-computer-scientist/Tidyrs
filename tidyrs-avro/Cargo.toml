@@ -8,7 +8,13 @@ description = "Apache Avro reader for tidyloom (experimental)"
 
 [dependencies]
 tidyrs-core = { workspace = true }
-apache-avro = { version = "0.21", default-features = false, features = ["snappy"] }
+# default-features = false, no extra codec features: see the module docs
+# in src/lib.rs for exactly why "snappy" is deliberately NOT enabled here
+# (a real, confirmed unguarded-allocation vulnerability in apache-avro
+# 0.21.0's Snappy decompression path). Null and Deflate codec support —
+# the two most common real-world cases — are always compiled in
+# regardless of feature flags.
+apache-avro = { version = "0.21", default-features = false }
 chrono = { version = "0.4", default-features = false, features = ["std"] }
 
 [dev-dependencies]
