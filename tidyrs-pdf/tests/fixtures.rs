@@ -261,6 +261,78 @@ fn a_free_text_paragraph_below_a_table_loses_no_characters() {
 }
 
 #[test]
+fn a_page_with_two_differently_shaped_tables_and_a_paragraph_loses_no_values() {
+    // Known limitation, not a regression: the original shape the external
+    // QA report described for "multi_table.pdf" — two real tables with
+    // different column layouts on one page, plus a free-text "Comments:"
+    // paragraph below both. infer_column_spans measures whitespace
+    // alignment across *every* line in the slice uniformly (see the
+    // module docs in lib.rs); two tables with genuinely different column
+    // widths barely agree on any single gap position across the combined
+    // set, so instead of mis-splitting either table's numbers into the
+    // wrong columns, the whole thing collapses to one wide, largely
+    // unsplit text span. That's actually a safer failure mode than
+    // partial mis-splitting would be: every row's full original text
+    // survives intact as one string rather than getting sliced up wrong.
+    // Combined with the `extract_row` fix (gap-position characters no
+    // longer silently dropped), this test confirms the two-table
+    // variant of the original report stays within the same bounded
+    // guarantee as the single-table case: garbled structure, never
+    // missing data.
+    let bytes = fixture("multi_table.pdf");
+    let parser = PdfParser::new();
+    let outcome = parser.parse(&bytes, "multi_table.pdf", &ParseOptions::new()).unwrap();
+    let table = &outcome.tables[0];
+
+    let per_row_concat: Vec<String> = table
+        .rows
+        .iter()
+        .map(|row| {
+            row.iter()
+                .map(|v| match v {
+                    TidyValue::Text(s) => s.clone(),
+                    TidyValue::Null => String::new(),
+                    other => format!("{other:?}"),
+                })
+                .collect::<String>()
+        })
+        .collect();
+    let joined = per_row_concat.join(" ");
+    for expected in [
+        // First table's values.
+        "North",
+        "120",
+        "4500.50",
+        "South",
+        "95",
+        "3120.00",
+        "East",
+        "210",
+        "8899.99",
+        // Second table's values (a completely different column layout).
+        "Blue Widget",
+        "A100",
+        "42",
+        "Red Widget",
+        "A101",
+        "17",
+        // Paragraph text.
+        "Comments",
+        "regions",
+        "trimestre",
+        "underperformed",
+        "warehouse",
+        "delay",
+    ] {
+        assert!(
+            joined.contains(expected),
+            "expected {expected:?} to survive intact within a single row, got rows: {:?}",
+            table.rows
+        );
+    }
+}
+
+#[test]
 fn simple_aligned_table_is_reconstructed() {
     let bytes = fixture("simple_table.pdf");
     let parser = PdfParser::new();

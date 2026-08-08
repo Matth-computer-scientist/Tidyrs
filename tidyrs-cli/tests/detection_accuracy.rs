@@ -69,6 +69,7 @@ const CASES: &[(&str, &str)] = &[
     ("pdf/right_aligned_numbers.pdf", "pdf"),
     ("pdf/multi_page_table.pdf", "pdf"),
     ("pdf/table_with_trailing_comments.pdf", "pdf"),
+    ("pdf/multi_table.pdf", "pdf"),
     ("xlsx/junk_rows_and_merged_cells.xlsx", "xlsx"),
     ("xlsx/leading_blank_and_title_rows.xlsx", "xlsx"),
     ("xlsx/multi_sheet_different_shapes.xlsx", "xlsx"),

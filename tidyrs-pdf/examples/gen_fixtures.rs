@@ -259,5 +259,32 @@ fn main() {
         ],
     );
 
+    // The original shape the external QA report described for
+    // "multi_table.pdf": two real tables with different column layouts on
+    // one page, plus a free-text paragraph below both. See
+    // `a_page_with_two_differently_shaped_tables_and_a_paragraph_loses_no_values`
+    // in tests/fixtures.rs — confirms this collapses to one wide,
+    // unsplit-but-intact text column rather than mis-typing any value,
+    // the same "garbled structure, not missing data" guarantee as the
+    // single-table-plus-paragraph case.
+    write_lines(
+        &out_dir.join("multi_table.pdf"),
+        &[
+            "region     units   revenue",
+            "North      120     4500.50",
+            "South      95      3120.00",
+            "East       210     8899.99",
+            "",
+            "product          sku     stock",
+            "Blue Widget      A100    42",
+            "Red Widget       A101    17",
+            "",
+            "Comments:",
+            "Sales were strong in the North and East regions this quarter,",
+            "largely driven by the new product launch in early trimestre.",
+            "The South region underperformed due to a warehouse delay.",
+        ],
+    );
+
     println!("wrote fixtures to {}", out_dir.display());
 }

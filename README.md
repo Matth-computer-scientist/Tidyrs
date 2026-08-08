@@ -607,6 +607,20 @@ is blank on nearly every row by definition. See
 `a_free_text_paragraph_below_a_table_loses_no_characters` in
 `tidyrs-pdf/tests/fixtures.rs`.
 
+The original report actually described a slightly different shape —
+`multi_table.pdf`: two real tables with *different* column layouts on one
+page, plus the same trailing paragraph — which was investigated
+separately to confirm the guarantee still holds there too. With two
+mismatched layouts in the same alignment pass, `infer_column_spans`
+barely agrees on any gap position across the combined set, so instead of
+mis-splitting either table's numbers into the wrong columns, the whole
+page collapses to one wide, largely unsplit text span — arguably a safer
+failure than partial mis-splitting, since every row's full original text
+survives intact as one string. Combined with the `extract_row` fix above,
+no value from either table or the paragraph is lost. See
+`a_page_with_two_differently_shaped_tables_and_a_paragraph_loses_no_values`
+in `tidyrs-pdf/tests/fixtures.rs`.
+
 ### Silent numeric/encoding corruption fixed via external QA testing
 
 A further QA round specifically targeted whether *values survive
