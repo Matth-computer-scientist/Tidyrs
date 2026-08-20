@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="assets/logo/svg/banner-dark.svg" alt="Tidyrs — data, tidied" width="100%">
+</p>
+
 # tidyloom
 
 **Universal normalization for chaotic data files.** A headless Rust

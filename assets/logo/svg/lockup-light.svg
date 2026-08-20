@@ -1,0 +1,5 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 420 96" width="420" height="96" role="img" aria-label="Tidyrs">
+<rect x="0" y="0" width="100" height="14" fill="#bb6240"></rect><rect x="0" y="24" width="16" height="72" fill="#262320"></rect><rect x="25" y="51.36" width="16" height="44.64" fill="#262320"></rect><rect x="50" y="35.52" width="16" height="60.48" fill="#262320"></rect><rect x="75" y="64.32" width="16" height="31.68" fill="#262320"></rect>
+<text x="136" y="60" font-family="IBM Plex Sans, Helvetica, Arial, sans-serif" font-weight="600" font-size="42" letter-spacing="-1.26" fill="#262320">Tidyrs</text>
+<text x="137" y="82" font-family="IBM Plex Mono, ui-monospace, monospace" font-size="11.5" letter-spacing="2.76" fill="#8b8781">DATA, TIDIED</text>
+</svg>
